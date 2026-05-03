@@ -20,10 +20,13 @@ y verifica:
 
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 import tempfile
 from pathlib import Path
+
+import pytest
 
 # Anadir repo root a sys.path
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -218,13 +221,26 @@ def test_formalize_paper_dry_run_shared():
             shutil.rmtree(paper_subdir, ignore_errors=True)
 
 
+@pytest.mark.skipif(
+    not os.environ.get("AVID_RUN_REAL_E2E"),
+    reason=(
+        "E2E con Claude real: establece AVID_RUN_REAL_E2E=1 para pytest, "
+        "o ejecuta: python tests/test_orchestrator.py --real"
+    ),
+)
 def test_formalize_paper_real():
     """Test e2e real. Requiere:
     - claude CLI en PATH
     - lean 4 (v4.29) via elan
     - Mathlib descargado en lean_project/.lake/
 
-    Corre con: python tests/test_orchestrator.py --real
+    Corre con pytest y variable de entorno:
+
+        AVID_RUN_REAL_E2E=1 pytest tests/test_orchestrator.py::test_formalize_paper_real
+
+    O como script:
+
+        python tests/test_orchestrator.py --real
     """
     print("[info] Corriendo e2e real contra Claude Code. Esto puede tardar...")
     summary = formalize_paper(

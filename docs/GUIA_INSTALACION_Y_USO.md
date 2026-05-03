@@ -321,7 +321,7 @@ Resumen:
 | Artículo mínimo (pares) | `examples/tiny_even_numbers/paper.tex` | `lean_project/Papers/TinyEvensPaperReal/` |
 | Tesis (corrida parcial) | `examples/thesis_ayrton_porto/paper.tex` | `lean_project/Papers/AyrtonPortoTesis/` |
 
-Los scripts `diagnose_thesis.py`, `list_thesis_blocks.py`, etc., apuntan al `.tex` de `examples/thesis_ayrton_porto/paper.tex`.
+Los scripts en `scripts/formalization/` (`diagnose_thesis.py`, `list_thesis_blocks.py`, etc.) apuntan al `.tex` de `examples/thesis_ayrton_porto/paper.tex`. Ejecútalos desde la raíz del repo.
 
 ---
 

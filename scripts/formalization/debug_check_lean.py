@@ -3,11 +3,13 @@ import sys
 sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
 sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
 
-sys.path.insert(0, ".")
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT))
+
 from src.formalization.scripts.lean_checker import check_lean_file
 
-REPO_ROOT = Path(__file__).resolve().parent
 target = REPO_ROOT / "lean_project" / "Papers" / "AyrtonPortoTesis" / "Blocks" / "def_espacios_T.lean"
 
 print(f"Verificando: {target}")

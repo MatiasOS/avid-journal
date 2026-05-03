@@ -1,12 +1,13 @@
 """Verifica filtrado por rango y modo resume sobre la tesis (dry_run, sin Claude)."""
 import sys
-import os
+from pathlib import Path
+
 sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
 sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
 
-sys.path.insert(0, os.path.dirname(__file__))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT))
 
-from pathlib import Path
 from src.formalization.orchestrator import formalize_paper, _parse_blocks_range
 
 # Test 1: parser de rangos
@@ -34,7 +35,7 @@ print()
 print("=" * 70)
 print("TEST 2: formalize_paper(blocks_range='1-13', dry_run=True) sobre tesis")
 print("=" * 70)
-THESIS = str(Path(__file__).resolve().parent / "examples" / "thesis_ayrton_porto" / "paper.tex")
+THESIS = str(REPO_ROOT / "examples" / "thesis_ayrton_porto" / "paper.tex")
 
 summary = formalize_paper(
     tex_path=THESIS,

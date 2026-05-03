@@ -13,7 +13,8 @@ from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
 sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
-sys.path.insert(0, ".")
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT))
 
 from src.parser.latex_parser import LaTeXParser
 from src.formalization.orchestrator import topological_sort
@@ -26,7 +27,6 @@ from src.formalization.lean_project import (
 from src.formalization.complexity import classify, Mode
 from src.formalization.orchestrator import lean_ident_for, _extract_declarations, _has_real_declaration
 
-REPO_ROOT = Path(__file__).resolve().parent
 PAPER_TITLE = "Ayrton Porto Tesis"
 TEX_PATH = REPO_ROOT / "examples" / "thesis_ayrton_porto" / "paper.tex"
 PAPER_DIR = REPO_ROOT / "lean_project" / "Papers" / "AyrtonPortoTesis"

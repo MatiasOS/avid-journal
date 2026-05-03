@@ -3,12 +3,12 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT))
 
 from src.parser.latex_parser import LaTeXParser
 
-THESIS = ROOT / "examples" / "thesis_ayrton_porto" / "paper.tex"
+THESIS = REPO_ROOT / "examples" / "thesis_ayrton_porto" / "paper.tex"
 
 parser = LaTeXParser()
 blocks = parser.parse_file(str(THESIS))

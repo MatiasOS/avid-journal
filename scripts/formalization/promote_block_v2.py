@@ -4,8 +4,8 @@ a Claude. Util cuando el bloque fue marcado failed por un bug del checker
 o cuando un run fue abortado pero Claude ya escribio el archivo correctamente.
 
 Uso:
-  python promote_block_v2.py <label>
-  python promote_block_v2.py def:continuidad-homeomorfismo
+  python scripts/formalization/promote_block_v2.py <label>
+  python scripts/formalization/promote_block_v2.py def:continuidad-homeomorfismo
 """
 import sys
 import re
@@ -13,7 +13,8 @@ from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
 sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
-sys.path.insert(0, ".")
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT))
 
 from src.parser.latex_parser import LaTeXParser
 from src.formalization.orchestrator import (
@@ -23,14 +24,13 @@ from src.formalization.orchestrator import (
     _has_real_declaration,
 )
 
-REPO_ROOT = Path(__file__).resolve().parent
 PAPER_DIR = REPO_ROOT / "lean_project" / "Papers" / "AyrtonPortoTesis"
 TEX_PATH = REPO_ROOT / "examples" / "thesis_ayrton_porto" / "paper.tex"
 PAPER_LEAN = PAPER_DIR / "Paper.lean"
 PAPER_INDEX = PAPER_DIR / "PAPER_INDEX.md"
 
 if len(sys.argv) < 2:
-    print("Uso: python promote_block_v2.py <label>")
+    print("Uso: python scripts/formalization/promote_block_v2.py <label>")
     sys.exit(1)
 
 LABEL = sys.argv[1]

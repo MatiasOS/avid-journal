@@ -12,12 +12,12 @@ from pathlib import Path
 import re
 import sys
 
-ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT))
 
 from src.parser.latex_parser import LaTeXParser
 
-THESIS = ROOT / "examples" / "thesis_ayrton_porto" / "paper.tex"
+THESIS = REPO_ROOT / "examples" / "thesis_ayrton_porto" / "paper.tex"
 
 # Costos reales del sample paper (3 bloques): $1.66 / 25 min
 COST_PER_BLOCK_USD = 1.66 / 3  # ~$0.55

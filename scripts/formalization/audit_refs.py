@@ -2,8 +2,8 @@
 import re
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
-p = ROOT / "examples" / "thesis_ayrton_porto" / "paper.tex"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+p = REPO_ROOT / "examples" / "thesis_ayrton_porto" / "paper.tex"
 data = p.read_text(encoding="utf-8")
 
 patterns = [

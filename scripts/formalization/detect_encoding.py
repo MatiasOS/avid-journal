@@ -1,8 +1,8 @@
 """Detecta el encoding real del .tex de la tesis."""
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
-p = ROOT / "examples" / "thesis_ayrton_porto" / "paper.tex"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+p = REPO_ROOT / "examples" / "thesis_ayrton_porto" / "paper.tex"
 data = p.read_bytes()
 print(f"Tamano: {len(data)} bytes")
 print(f"BOM UTF-8?: {data[:3] == b'\\xef\\xbb\\xbf'}")

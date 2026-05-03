@@ -3,7 +3,7 @@ Promueve un bloque a 'verified' usando el archivo Block existente, sin llamar
 a Claude. Util cuando el bloque fue marcado failed por un bug del checker
 pero el codigo Lean es correcto.
 
-Uso: python promote_block.py
+Uso: python scripts/formalization/promote_block.py
 """
 import sys, re
 from pathlib import Path
@@ -11,7 +11,7 @@ from pathlib import Path
 sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
 sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
 
-REPO_ROOT = Path(__file__).resolve().parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 PAPER_DIR = REPO_ROOT / "lean_project" / "Papers" / "AyrtonPortoTesis"
 
 LABEL_TO_PROMOTE = "def:espacios-T"

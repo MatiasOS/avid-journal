@@ -12,7 +12,7 @@ from pathlib import Path
 sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
 sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
 
-REPO_ROOT = Path(__file__).resolve().parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 PAPER_DIR = REPO_ROOT / "lean_project" / "Papers" / "AyrtonPortoTesis"
 PAPER_LEAN = PAPER_DIR / "Paper.lean"
 PAPER_INDEX = PAPER_DIR / "PAPER_INDEX.md"

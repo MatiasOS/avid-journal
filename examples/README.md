@@ -45,7 +45,7 @@ Es el manuscrito completo en un solo archivo `.tex` (~270 KB). El pipeline AViD 
 Diagnóstico sin Claude:
 
 ```bash
-python diagnose_thesis.py
+python scripts/formalization/diagnose_thesis.py
 ```
 
 Formalización por rangos (ahorra cuota y permite *pair review* incremental):

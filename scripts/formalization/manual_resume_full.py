@@ -1,18 +1,20 @@
 """Verifica modo resume: PAPER_INDEX.md con bloques verified previos
 deben skipearse en la siguiente ejecucion."""
-import sys, os, shutil
+import sys, shutil
+from pathlib import Path
+
 sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
 sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
 
-sys.path.insert(0, os.path.dirname(__file__))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT))
 
-from pathlib import Path
 from src.formalization.orchestrator import formalize_paper
 from src.formalization.lean_project import create_paper_project
 
-THESIS = str(Path(__file__).resolve().parent / "examples" / "thesis_ayrton_porto" / "paper.tex")
+THESIS = str(REPO_ROOT / "examples" / "thesis_ayrton_porto" / "paper.tex")
 TITLE = "AyrtonPortoTesisResumeTest"
-PROJ = Path("lean_project") / "Papers" / TITLE.replace(" ", "")
+PROJ = REPO_ROOT / "lean_project" / "Papers" / TITLE.replace(" ", "")
 
 # Limpieza previa
 if PROJ.exists():

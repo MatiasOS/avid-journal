@@ -85,6 +85,10 @@ avid-journal/
 │   └── web/                 # Web interface (future)
 │       └── (pending)
 │
+├── scripts/
+│   └── formalization/      # Utilidades CLI (tesis, rebuild, smoke, depuración Lean)
+│       └── README.md
+│
 ├── tests/                   # Testing
 │   ├── test_parser.py
 │   ├── test_novelty.py

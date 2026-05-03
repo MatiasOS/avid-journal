@@ -6,7 +6,7 @@ sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace", line_bufferi
 import subprocess
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 target = REPO_ROOT / "lean_project" / "Papers" / "AyrtonPortoTesis" / "Blocks" / "def_espacios_T.lean"
 project_root = REPO_ROOT / "lean_project"
 
