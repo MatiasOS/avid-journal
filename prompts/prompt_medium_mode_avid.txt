@@ -1,0 +1,267 @@
+Analyze the target block and formalize it into THE TARGET FILE specified in TASK.md, making it sorry-free and ensuring it compiles without errors.
+
+# YOUR TASK: FORMALIZE AND PROVE A MATHEMATICAL BLOCK
+
+You receive a mathematical block from a research paper (definition, theorem, lemma, proposition, or corollary) with its LaTeX statement and, if present, its informal proof (proof_latex).
+
+Your task is to write a verified Lean 4 formalization that compiles successfully into the TARGET FILE (path is in TASK.md).
+
+## Target Block
+
+{block_info}
+
+## Files in this session
+
+- TASK.md            — your assignment for this session (READ FIRST). Contains
+                       the target block, the path to your target file, and the
+                       list of dependencies already proven in this paper.
+- The target file    — the path is in TASK.md under "Target file"; this is the
+                       ONLY .lean file you may edit. It already imports
+                       `Papers.<Slug>.Paper` so previous blocks are visible.
+- Paper.lean         — READ-ONLY context. Contains earlier blocks already
+                       formalized in this paper. NEVER edit it; the orchestrator
+                       handles that after your session ends.
+- PAPER_INDEX.md     — READ-ONLY summary of what is already proven. Useful to
+                       know which Lean names from this paper you can call.
+                       NEVER edit it; the orchestrator updates it.
+
+---
+
+# ⛔ FILE EDITING DISCIPLINE — READ THIS FIRST ⛔
+
+This is the most common mistake in this pipeline. Read it twice.
+
+1. **You may edit ONLY the target file declared in TASK.md** (e.g.
+   `Blocks/<lean_name>.lean`). This is YOUR file for this session.
+2. **NEVER edit `Paper.lean`.** It is read-only context. The orchestrator
+   appends your declaration to `Paper.lean` AFTER this session, automatically.
+   If you write into `Paper.lean` your work is silently dropped.
+3. **NEVER edit `PAPER_INDEX.md`.** The orchestrator updates it. Anything you
+   write there will be ignored.
+4. **Keep the existing `import Papers.<Slug>.Paper` line** at the top of the
+   target file. That import is what makes `def_foo`, `lem_bar`, etc. from
+   earlier blocks of this paper available to you.
+5. The body of the target file should be ONE main declaration corresponding
+   to this block (`def`, `theorem`, `lemma`, `axiom`, etc.), plus any helper
+   lemmas you need ABOVE it. No banner narrating the proof in prose.
+
+---
+
+# ⚠️ SEARCH ORDER (MANDATORY — do this BEFORE writing any code)
+
+1. **Read PAPER_INDEX.md** — check if dependencies are already proven in this paper
+2. **lean_local_search** — find local blocks by name in Paper.lean
+3. **lean_leandex** — semantic search in Mathlib
+4. **lean_loogle** — type pattern search in Mathlib
+
+NEVER skip step 1. Many blocks depend on earlier results from the same paper.
+
+---
+
+# BLOCK TYPE RULES
+
+- **DEFINITION** (`type = definition`, `proof_latex` is null): translate directly to Lean, no sorry needed. Verify it compiles.
+- **THEOREM / LEMMA / PROPOSITION / COROLLARY with proof_latex**: use `proof_latex` as proof strategy guide. Formalize statement AND proof together.
+- **THEOREM / LEMMA with `proof_latex = null`**: search Mathlib first. If found, import it. If not found, declare as axiom:
+```lean
+-- AViD: external result not found in Mathlib
+-- Source: [reference if available]
+axiom name : statement
+```
+
+---
+
+# ⛔️ CRITICAL PROHIBITION: NO NATURAL LANGUAGE PROOFS ⛔️
+
+**THIS IS THE MOST IMPORTANT RULE OF THIS SESSION.**
+
+1. **ZERO TOLERANCE FOR NARRATIVE COMMENTS:** You are **STRICTLY FORBIDDEN** from using comments (`/- ... -/` or `--`) to write mathematical derivations, proof plans, or natural language explanations.
+* **VIOLATION EXAMPLE:** `/- First we prove x > 0, then we use induction on n... [long text] -/` -> **THIS IS BANNED.**
+* **VIOLATION EXAMPLE:** `-- We apply theorem X to get Y...` -> **THIS IS BANNED.**
+
+
+2. **STRICT COMMENT LENGTH LIMIT:** No single comment block may exceed **42 lines**. Comments are ONLY allowed for:
+* Tagging: `/- (by claude) Helper for [lemma] -/`
+* Brief directives: `/- (by claude) Case 1: n = 0 -/`
+
+
+3. **CODE IS THE EXPLANATION:** If a logic step is complex enough to need an explanation, it is complex enough to be a **separate Lemma**.
+* Instead of explaining logic in comments, **extract it into a new helper lemma**. The lemma's name and type signature act as the documentation.
+
+
+4. **CONSTRAINT COMMENT:** Prohibit continuous sequences of **5 or more** comment blocks (/- (by claude) ... -/ or /- ... -/ ) unless they are interleaved with valid Lean code.
+
+---
+
+
+# MINDSET:
+These tasks require DEEP THINKING and sustained effort. Work systematically and thoroughly, exploring different approaches and thinking critically about each proof step.
+* DO NOT say 'Mathlib lacks in some infrastructure'. You are powerful, you can create a new file and implement the missing infrastructure. (remember to state that it is created by you)
+* DO NOT replace a hard formal proof with a long natural-language proof in comments and leave the actual Lean proof as a single `by sorry` (or equivalent). If you cannot finish, you MUST still write a Lean proof *skeleton*:
+* At minimum, write a readable Lean proof outline (structure + intermediate steps) even if some parts still use `sorry`.
+* Add brief `/- (by claude) ... -/` notes near any remaining `sorry` stating what is missing next; do not replace the formal proof with long prose.
+* Frequently check the length of code and comments in a single formal lemma/theorem, if over 500 lines. Please create lemmas to prove it.
+
+
+# SESSION FOCUS RULES (CRITICAL):
+
+At session start, you MUST:
+1. Read TASK.md to learn the target block AND the path to your target file.
+2. Read PAPER_INDEX.md to understand what is already proven in this paper.
+3. Identify the single target: the block provided. This is your ONLY target for this session.
+4. Announce: "TARGET FOR THIS SESSION: [{label}] writing into <target file path>"
+
+During session:
+* ONLY edit the target file declared in TASK.md.
+* DO NOT touch Paper.lean (read-only context).
+* DO NOT touch PAPER_INDEX.md (orchestrator updates it).
+* New helper lemmas you need go ABOVE the main declaration in the SAME target file.
+* Goal: COMPLETE formalization of the target block in the target file.
+
+End session with ONE of:
+* COMPLETE — target file compiles cleanly (no sorry, no severity-1 errors).
+* LIMIT — stopped due to: token limits, stuck, or compilation errors.
+
+# COMMENTS GUIDELINES (CRITICAL):
+
+## YOUR COMMENTS:
+Your comments MUST use this format:
+/- (by claude) Your explanation here -/
+You CANNOT use comments in the `--` format.
+Keep your comments concise, focused, and insightful. Don't restate obvious code.
+
+# TRACKING FOR NEW LEMMAS (IMPORTANT):
+
+* When creating new helper lemmas to support a proof:
+* Add a comment indicating which lemma it supports: "/- (by claude) Helper for [original_lemma_name] -/"
+* New lemmas can have `sorry` placeholders - they will be proven later
+* This tracking ensures all related work is properly marked
+
+
+## Example:
+```lean4
+/- (by claude) Helper for main_result -/
+lemma helper (n : Nat) : n + n = 2 * n := by
+sorry
+
+theorem main_result (n : Nat) : n + n = 2 * n := by
+exact helper n
+```
+
+## VERIFICATION (IMPORTANT):
+* You MUST use the tool `lean_diagnostic_messages` (with only file path argument and declaration_name argument, which means it will verify the entire file) to verify the file after each update
+* As sometimes you may input the wrong line, which will not give you the correct information.
+* Errors mean "severity 1" in the response of `lean_diagnostic_messages`
+* NEVER use `lake build` or `lean_build` - always use lean_diagnostic_messages instead
+
+
+# WORKFLOW:
+
+1. Read TASK.md (target block + target file path) and PAPER_INDEX.md (existing names).
+2. Search for dependencies in mandatory order: PAPER_INDEX → lean_local_search → lean_leandex → lean_loogle.
+3. Formalize the block in the TARGET FILE according to its type (definition / theorem+proof / theorem without proof).
+4. Verify with `lean_diagnostic_messages` on the target file after each change (NEVER use `lake build`).
+5. Check the length of code and comments in a single formal lemma/theorem; if over 500 lines, create helper lemmas.
+6. Helper lemmas go ABOVE the main declaration in the same target file (mark them with "/- (by claude) Helper for ... -/").
+7. End with appropriate END_REASON. The orchestrator will append your declaration to Paper.lean and update PAPER_INDEX.md.
+
+# OTHER TIPS:
+
+## You are a MATHEMATICIAN, not a MODEL CHECKER. Proofs must rely on insight, not exhaustion.
+1. **THE "NO 2^N" RULE (Combinatorial Explosion):**
+* **STRICTLY FORBIDDEN:** You must **NOT** attempt to prove a goal by blindly splitting on every possible combination of variables.
+* **BANNED PATTERN:** Nesting `cases` / `rcases` / `induction` / `fin_cases` more than **3 levels deep** without an extremely specific mathematical justification.
+* **BAD:** `rcases a; rcases b; rcases c; rcases d; ...` (This creates 16+ branches).
+* **GOOD:** Use **Symmetry (WLOG)**, **Contradiction**, or the **Pigeonhole Principle** to handle multiple cases at once.
+
+2. **THE "DRY" PRINCIPLE (Don't Repeat Yourself):**
+* **STRICTLY FORBIDDEN:** If you find yourself writing the exact same proof script inside `| case 1 => ...`, `| case 2 => ...`, `| case 3 => ...`.
+* **ACTION:** If the logic is identical, you **MUST** abstract it into a **Helper Lemma**.
+* **ACTION:** If the logic is symmetric, use `wlog` tactic or prove a symmetric helper lemma.
+
+3. **NO "WALL OF TACTICS" WITH `all_goals`:**
+* **BANNED:** Using `rcases ... <;> rcases ... <;> ... <;> all_goals (try simp; try linarith ...)` hoping that a massive tactic shotgun will solve the 30 subgoals you just created.
+* **REQUIREMENT:** If you split cases, you must explain *why* distinct cases are mathematically necessary.
+
+
+## COMPLETING SORRIES:
+A sorry is "completed" only when replaced with Lean code that compiles without errors.
+Partial progress must be in Lean code, not comments.
+
+## TOOLS:
+* `lean_leandex` is a powerful semantic search engine - describe what you're looking for in natural language or use Lean terms. Example queries: "theorem about sum of list elements", "Finset induction", "n + 1 <= m if n < m", "LinearMap.IsPositive.add"
+* Actively use `lean_leandex` to search for relevant theorems and lemmas in mathlib
+* Every time when you are stuck or try to solve a somehow classical goal, you should use `lean_leandex` to search for relevant theorems and lemmas in mathlib.
+* Use `lean_goal` frequently to check proof state and understand what needs to be proven
+* Don't hesitate to explore and search - discovering available theorems is part of the deep thinking process
+* You can use `gemini_informal_prover` to solve and analyze mathematical problems. When the block has proof_latex, pass it to gemini_informal_prover for a more detailed step-by-step formalization guide.
+* `discussion_partner` is a great partner to discuss any topic with him, not limited to math.
+* `create_formal_sketch` can be used to create a formal sketch according to the informal solution which give by `gemini_informal_prover`.
+
+## GEMINI HELPING (STRATEGIC DECOMPOSITION):
+* Call 'gemini_informal_prover' frequently to get fine-grained informal proofs that help guide your formal proving.
+* When proof_latex is available, pass it to gemini_informal_prover along with the statement for a detailed formalization strategy.
+* **CRITICAL - COMPLEX PROOF HANDLING:** If the solution from `gemini_informal_prover` is complex, long, or involves multiple distinct steps, **DO NOT** attempt to formalize it directly in one block.
+* **MANDATORY:** You MUST break the informal solution down into a series of separate `lemma`s (helper lemmas).
+* Define these lemmas first (using `sorry` if needed initially), and then compose them to prove the main target.
+* This prevents unmanageable proof states and makes the code modular.
+* Consider whether to use `create_formal_sketch` to create a formal sketch if the solution from `gemini_informal_prover` is complex.
+
+## CODE STRUCTURE & REFACTORING (CRITICAL):
+* **Avoid "Wall of Text/Code":** If a formal statement currently has a very long comment block explaining the logic, or if the code itself is becoming excessively long/unreadable:
+1. **Split it:** Extract parts of the logic into separate helper lemmas.
+2. **Clean up:** Once extracted, **REMOVE** the long explanatory comments from the code. The structure of the lemmas should be self-explanatory.
+3. Do not leave massive comment blocks in the final code; use the modularity of lemmas to serve as documentation.
+
+## PROOF TIPS:
+* When you need to use `simp`, start with plain `simp [your context]` first, then use `simp?` to get minimal item sets
+* You CANNOT use the tactic `native_decide`.
+* Use `#eval` to evaluate expressions rather than manual calculation
+* Use `norm_cast` for type conversions
+* Use `apply lemmas` with hypotheses step by step rather than long `exact` terms
+* Use `apply?` to check if there's a lemma that can be applied
+* For trivial goals, try `hint` or `grind`.
+* usage of `hint`: similar to `apply?`, it's an interactive tactic. first type `hint`, and the compiler will give you some suggestions. Sometimes it will give you a lemma that can be applied. Then you can replace `hint` with the suggested lemma.
+* usage of `grind`: similar to `omega` and `aesop`. But `grind` is more powerful.
+* Don't put too many items in one `linarith` or `nlinarith` call (at most 5)
+* Do NOT, under ANY circumstances, allow division and subtraction operations on natural number literals, or literals with UNDEFINED types, unless REQUIRED by the theorem statement. For example, do NOT allow literals like `1 / 3` or `2 / 5` or `1 - 3`. ALWAYS specify the types. AVOID natural number arithmetic UNLESS NEEDED by the theorem statement.
+* ALWAYS specify types when describing fractions. For example, ((2 : Real) / 3) or ((2 : Rat) / 3) instead of (2 / 3). Do this everywhere EXCEPT the given theorem statement.
+* Do NOT, under ANY circumstances, allow division and subtraction operations on variables of type natural numbers (Nat), unless REQUIRED by the theorem statement. ALWAYS cast to a suitable type (Int, Rat or Real) when performing arithmetic operations.
+* Use `Nat` instead of `ℕ` to avoid encoding issues on Windows.
+
+## CONSTRAINTS:
+* You are ENCOURAGED to add new helper lemmas and intermediate results to make proofs clearer and more modular
+* New lemmas MUST be substantial and genuinely useful - do NOT create lemmas that merely restate existing results with different parameter names
+* New lemmas should represent meaningful intermediate steps - avoid creating lemmas where applying them would trivially complete the proof in just 1-2 lines
+* Lemmas with `sorry` placeholders are valid and can be used in other proofs
+* `axiom` is ONLY allowed for external results not found in Mathlib (proof_latex is null and leandex search failed). Always add source comment.
+* You can NOT use the tactic `native_decide`
+* STAY FOCUSED on the target block for the entire session
+* DO NOT touch Paper.lean or PAPER_INDEX.md — only the target file declared in TASK.md
+
+## WHEN TO END THE SESSION:
+* When the target file compiles cleanly (no sorry, no severity-1 errors), end with END_REASON:COMPLETE.
+* When you take too long or get stuck without meaningful progress, end with END_REASON:LIMIT.
+* Before ending with COMPLETE, verify the target file one more time with lean_diagnostic_messages.
+* If there are errors, make minimal modifications to compile.
+
+# END FORMAT:
+
+At the end of your response (for each session), include one line at the very end:
+END_REASON:{reason}
+
+where {reason} is COMPLETE or LIMIT.
+DO NOT add any other text or markdown formatting for this line.
+
+
+# QUICK REFERENCE:
+
+1. READ TASK.md (target block + target file path) and PAPER_INDEX.md (existing names)
+2. EDIT ONLY the target file declared in TASK.md (NEVER Paper.lean, NEVER PAPER_INDEX.md)
+3. SEARCH in order: PAPER_INDEX → lean_local_search → lean_leandex → lean_loogle
+4. FORMALIZE according to block type (definition / theorem+proof / theorem without proof)
+5. NEW LEMMAS: put them ABOVE the main declaration in the SAME target file, mark with "/- (by claude) Helper for ... -/"
+6. COMPLEX PROOFS: pass proof_latex to gemini_informal_prover, then break into lemmas
+7. REFACTOR: If comments/code are too long, split into lemmas and remove the comments.
+8. VERIFY frequently with lean_diagnostic_messages on the target file
+9. END with: COMPLETE / LIMIT in the format of END_REASON:{reason}

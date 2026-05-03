@@ -1,0 +1,40 @@
+\documentclass{article}
+\usepackage{amsmath, amsthm}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{definition}{Definition}
+
+\title{A Tiny Paper on Even Numbers}
+\author{AViD Test Fixture}
+
+\begin{document}
+\maketitle
+
+\begin{definition}[Even number]\label{def:even}
+A natural number $n$ is \textbf{even} if there exists a natural number $k$
+such that $n = 2k$.
+\end{definition}
+
+\begin{lemma}[Sum of two evens]\label{lem:even_sum}
+If $a$ and $b$ are even natural numbers (Definition~\ref{def:even}),
+then $a + b$ is even.
+\end{lemma}
+
+\begin{proof}
+By Definition~\ref{def:even}, there exist natural numbers $k$ and $m$
+with $a = 2k$ and $b = 2m$. Then $a + b = 2k + 2m = 2(k + m)$, so
+$a + b$ is even by Definition~\ref{def:even}.
+\end{proof}
+
+\begin{theorem}[Sum of four evens]\label{thm:four_evens}
+If $a, b, c, d$ are even natural numbers, then $a + b + c + d$ is even.
+\end{theorem}
+
+\begin{proof}
+By Lemma~\ref{lem:even_sum}, $a + b$ is even and $c + d$ is even.
+Applying Lemma~\ref{lem:even_sum} once more to $a + b$ and $c + d$
+yields that $(a + b) + (c + d) = a + b + c + d$ is even.
+\end{proof}
+
+\end{document}

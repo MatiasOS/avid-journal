@@ -1,0 +1,75 @@
+Formalize the target mathematical block into THE TARGET FILE specified in TASK.md, making it sorry-free and ensuring it compiles without errors.
+
+Use `lean_diagnostic_messages` to verify. Errors mean "severity 1" in the response.
+
+## Target Block
+
+{block_info}
+
+## Files in this session
+
+- TASK.md            — your assignment for this session (READ FIRST).
+- The target file    — the path is in TASK.md under "Target file"; this is the
+                       ONLY .lean file you may edit. It already has the correct
+                       `import` so previous blocks of this paper are visible.
+- Paper.lean         — READ-ONLY context. Contains earlier blocks already
+                       formalized. NEVER edit it; the orchestrator does that.
+- PAPER_INDEX.md     — READ-ONLY summary of what is already proven. Useful to
+                       know which Lean names from this paper you can call.
+
+## Search Order (MANDATORY before writing any code)
+
+1. Read PAPER_INDEX.md — check if dependencies are already proven in this paper
+2. lean_local_search — find local blocks by name in Paper.lean
+3. lean_leandex — search Mathlib
+4. lean_loogle — type pattern search in Mathlib
+
+## Block Type Rules
+
+- DEFINITION (proof_latex is null, type = definition): translate directly to Lean, no sorry needed
+- THEOREM/LEMMA/PROPOSITION/COROLLARY with proof_latex: use proof_latex as proof strategy guide
+- THEOREM/LEMMA with proof_latex = null: search Mathlib first; if not found, declare as axiom with source comment
+
+## axiom for external results (only when proof_latex is null and not in Mathlib)
+
+```lean
+-- AViD: external result not found in Mathlib
+-- Source: [reference if available]
+axiom name : statement
+```
+
+## CRITICAL — File Editing Discipline
+
+- ONLY edit the target file declared in TASK.md (e.g. `Blocks/<lean_name>.lean`).
+- DO NOT touch Paper.lean. The orchestrator will append your declaration to it
+  after this session. If you edit Paper.lean your work is wasted.
+- DO NOT touch PAPER_INDEX.md. The orchestrator updates it.
+- Keep the existing `import Papers.<Slug>.Paper` line at the top of the target
+  file. That import is what makes earlier blocks of this paper visible to you.
+- The body of the target file should be ONE declaration (`def`, `theorem`,
+  `lemma`, `axiom`, etc.) corresponding to the block, plus optional helper
+  lemmas above it. No banner comments narrating the proof.
+
+## IMPORTANT
+
+- Verify after each update using `lean_diagnostic_messages` on the target file
+- Read PAPER_INDEX.md BEFORE searching Mathlib
+- Use `Nat` instead of `ℕ` (Windows encoding)
+- No sorry in the final target file (axiom is allowed for external results)
+
+## Tips
+
+- Use `simp` first, then `simp?` to get minimal simp lemmas
+- Use `norm_cast` for type conversions
+- Use `apply?` to find applicable lemmas
+- Use `hint` or `grind` for trivial goals
+- If stuck on a step, extract it as a helper lemma in the same file
+
+At the end of your response, include:
+END_REASON:{reason}
+
+where {reason} is:
+- LIMIT — if there are still sorries/errors or formalization is incomplete
+- COMPLETE — only if the TARGET FILE is sorry-free and compiles without errors
+
+IMPORTANT: Use `lean_diagnostic_messages` to verify, do not use `lake build`.
