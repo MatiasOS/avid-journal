@@ -22,9 +22,17 @@ No hace falta instalar Mathlib “a mano”: **Lake** lo trae como dependencia d
 
 ### 2.1 Git y Python
 
-- **Git**: [https://git-scm.com/downloads](https://git-scm.com/downloads)
-- **Python**: [https://www.python.org/downloads/](https://www.python.org/downloads/)  
-  En Windows, marca la opción **“Add Python to PATH”**.
+**Git** — [https://git-scm.com/downloads](https://git-scm.com/downloads)
+
+- **macOS**: `brew install git` (o usa Xcode Command Line Tools, que ya lo incluyen).
+- **Linux** (Debian/Ubuntu): `sudo apt install git`.
+- **Windows**: instalador desde el enlace de arriba; incluye **Git Bash**, que es práctico.
+
+**Python 3.10+** — [https://www.python.org/downloads/](https://www.python.org/downloads/)
+
+- **macOS**: `brew install python@3.11` (o usa `pyenv`).
+- **Linux** (Debian/Ubuntu): `sudo apt install python3 python3-venv python3-pip`.
+- **Windows**: instalador desde el enlace de arriba; marca la opción **“Add Python to PATH”** durante la instalación.
 
 ### 2.2 Entorno virtual Python (recomendado)
 
@@ -88,9 +96,12 @@ lake build Papers.AyrtonPortoTesis.Paper
 
 ### 2.5 Claude Code CLI
 
-El orquestador invoca el ejecutable **`claude`** (subprocess). En Windows suele instalarse vía **npm** y aparecer como `claude.cmd`.
+El orquestador invoca el ejecutable **`claude`** como subprocess.
 
 1. Instala **Node.js LTS**: [https://nodejs.org/](https://nodejs.org/)
+   - **macOS**: `brew install node`
+   - **Linux** (Debian/Ubuntu): mirá las instrucciones oficiales para LTS.
+   - **Windows**: instalador desde el enlace de arriba.
 2. Sigue la documentación actual de Anthropic para **Claude Code** (CLI) y autenticación (cuenta / suscripción / login).
 
 Comprueba:
@@ -99,7 +110,7 @@ Comprueba:
 claude --version
 ```
 
-Si el comando no se encuentra, revisa el PATH o usa la ruta completa al wrapper (`.cmd` en Windows).
+Si el comando no se encuentra, revisa el PATH. En Windows, el wrapper aparece como `claude.cmd` (npm); puede que necesites usar la ruta completa o reiniciar la terminal tras la instalación.
 
 **Notas:**
 
@@ -112,13 +123,17 @@ Si el comando no se encuentra, revisa el PATH o usa la ruta completa al wrapper 
 
 Trabaja siempre desde la **raíz del repo** (donde está `src/` y `requirements.txt`).
 
-### 3.1 Codificación en Windows
+### 3.1 Codificación
 
-Para evitar errores de Unicode en consola:
+El orquestador siempre se invoca con `python -X utf8 …` para forzar UTF-8 en stdin/stdout. Esto cubre macOS, Linux y Windows.
+
+En Windows, además, podés fijar la variable de entorno una vez por sesión si tenés problemas con otros scripts:
 
 ```powershell
 $env:PYTHONIOENCODING="utf-8"
 ```
+
+En macOS / Linux no suele hacer falta nada extra.
 
 ### 3.2 Dry-run (sin Claude, sin gasto)
 
@@ -232,60 +247,7 @@ Tras cambiar prompts, un `--dry-run` + un bloque pequeño con `--blocks-range` v
 
 ---
 
-## 6. Subir el proyecto a GitHub
-
-### 6.1 Qué **no** subir (recomendado)
-
-- **`lean_project/.lake/`**: caché y artefactos de build (muy pesados). Ya está ignorado en `lean_project/.gitignore`.
-- **`.venv/`**: entorno virtual local.
-- **`__pycache__/`**, `*.pyc`
-- **Secretos**: `.env` con API keys (si en el futuro usas variables de entorno).
-
-En la raíz del repo hay un `.gitignore` para Python y archivos comunes.
-
-### 6.2 Qué **sí** suele subirse
-
-- Código fuente (`src/`, `prompts/`, `tests/`).
-- **Esqueleto** de `lean_project/` (`lakefile.toml`, `lean-toolchain`, fuentes `.lean` que quieras compartir).
-- Opcional: papers formalizados en `lean_project/Papers/...` si quieres que otros **revieren el mismo Lean** sin rerun de Claude (trade-off: más tamaño de repo, pero reproducibilidad de lectura).
-
-Si incluyes papers grandes, documenta en el README que el primer `lake build` puede ser largo.
-
-### 6.3 Pasos típicos (primera vez)
-
-En la raíz del proyecto:
-
-```bash
-git init
-git branch -M main
-git add .
-git status   # revisar que .lake y .venv NO aparecen
-git commit -m "Initial commit: AViD Journal formalization pipeline"
-```
-
-Crea un repo vacío en GitHub (sin README si ya tienes uno local, o haz merge).
-
-```bash
-git remote add origin https://github.com/TU_USUARIO/TU_REPO.git
-git push -u origin main
-```
-
-### 6.4 Para colaboradores
-
-En el README o en Issues, enlaza esta guía:
-
-`docs/GUIA_INSTALACION_Y_USO.md`
-
-y recuerda:
-
-1. `pip install -r requirements.txt`
-2. `cd lean_project && lake build`
-3. `claude` instalado y autenticado
-4. Ejecutar el orquestador con `PYTHONIOENCODING=utf-8` en Windows
-
----
-
-## 7. Scripts útiles del repo (opcional)
+## 6. Scripts útiles del repo (opcional)
 
 Además del orquestador, en sesiones de trabajo se han usado scripts auxiliares en la raíz (si existen en tu copia), por ejemplo:
 
@@ -297,18 +259,18 @@ Si los compartes en GitHub, documenta cada uno con una línea en el README.
 
 ---
 
-## 8. Solución de problemas breve
+## 7. Solución de problemas breve
 
 | Síntoma | Qué revisar |
 |---------|-------------|
-| `claude` no encontrado (WinError 2) | PATH / instalar CLI / usar `claude.cmd` |
+| `claude` no encontrado | PATH / instalar CLI / en Windows usar `claude.cmd` |
 | Línea de comandos demasiado larga | Ya mitigado: prompt por stdin en `runner.py` |
 | `Paper.olean` no existe al verificar un `Block` | Ejecutar `lake build Papers.<Slug>.Paper` desde `lean_project/` |
 | Cuota Claude agotada | Esperar reset; usar `--blocks-range` + modo resume (por defecto) |
 
 ---
 
-## 9. Ejemplos LaTeX + Lean en el repo
+## 8. Ejemplos LaTeX + Lean en el repo
 
 Hay dos conjuntos documentados (fuentes `.tex` y salida en `lean_project/Papers/`):
 
@@ -322,9 +284,3 @@ Resumen:
 | Tesis (corrida parcial) | `examples/thesis_ayrton_porto/paper.tex` | `lean_project/Papers/AyrtonPortoTesis/` |
 
 Los scripts en `scripts/formalization/` (`diagnose_thesis.py`, `list_thesis_blocks.py`, etc.) apuntan al `.tex` de `examples/thesis_ayrton_porto/paper.tex`. Ejecútalos desde la raíz del repo.
-
----
-
-Para una explicación **desde cero** (Git vs GitHub, primer push, por qué Mathlib no se sube, y cómo enlazar Numina con un submódulo), ver **[GIT_Y_GITHUB_DESDE_CERO.md](GIT_Y_GITHUB_DESDE_CERO.md)**.
-
----
