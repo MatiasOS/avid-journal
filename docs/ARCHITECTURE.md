@@ -7,38 +7,56 @@ System design and technical decisions.
 ## 🏛️ High-Level Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      AViD JOURNAL                           │
-│              Automated Mathematics Journal                  │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                         AViD JOURNAL                            │
+│                Automated Mathematics Journal                    │
+└─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
                     ┌──────────────────┐
                     │  Input: .tex     │
                     └────────┬─────────┘
                              │
-        ┌────────────────────┼────────────────────┐
-        │                    │                    │
-        ▼                    ▼                    ▼
-┌──────────────┐   ┌──────────────┐    ┌──────────────┐
-│   PARSER     │   │  NOVELTY     │    │ FORMALIZER   │
-│              │   │   CHECK      │    │              │
-│ Extract      │   │              │    │ Lean 4       │
-│ blocks       │   │ Is theorem   │    │ Numina       │
-│              │   │ new?         │    │              │
-└──────┬───────┘   └──────┬───────┘    └──────┬───────┘
-       │                  │                    │
-       │                  │                    │
-       └──────────────────┼────────────────────┘
-                          │
-                          ▼
-                  ┌──────────────┐
-                  │   DECISION   │
-                  │              │
-                  │ Accept/      │
-                  │ Reject       │
-                  └──────────────┘
+                             ▼
+                    ┌──────────────────┐
+                    │ PARSER           │  blocks + dep graph
+                    │ src/parser/      │
+                    └────────┬─────────┘
+                             │  topological order
+                             ▼
+        ┌════════ orchestrator (src/formalization/) ════════╗
+        ║                                                   ║
+        ║   for each block (resume mode skips done):        ║
+        ║   ┌─────────────────────────────────────────┐     ║
+        ║   │ FORMALIZATION + VERIFICATION (loop)     │     ║
+        ║   │                                         │     ║
+        ║   │  Claude Code session:                   │     ║
+        ║   │   • edits Blocks/<lean_name>.lean       │     ║
+        ║   │   • lean_diagnostic_messages            │     ║
+        ║   │   • iterates until clean or max_rounds  │     ║
+        ║   │                                         │     ║
+        ║   │  Orchestrator post-session:             │     ║
+        ║   │   • final lean_checker                  │     ║
+        ║   │   • append → Paper.lean                 │     ║
+        ║   │   • update PAPER_INDEX.md / REVIEW.md   │     ║
+        ║   │   • lake build (cache olean)            │     ║
+        ║   └─────────────────────────────────────────┘     ║
+        ╚═══════════════════╤═══════════════════════════════╝
+                            │
+                            ▼
+                  ┌──────────────────┐
+                  │ NOVELTY CHECK    │  separate pass over blocks
+                  │ src/novelty/     │  (Stages 0–3)
+                  └────────┬─────────┘
+                           │
+                           ▼
+                  ┌──────────────────┐
+                  │ DECISION         │  Accept / Reject + citations
+                  │ orchestrator     │
+                  └──────────────────┘
 ```
+
+The agent that writes Lean is **Claude Code**, not Numina-Lean-Agent. AViD vendors Numina's runner scripts under [src/formalization/scripts/](../src/formalization/scripts/) (`run_claude.py`, `runner.py`, `task.py`, `lean_checker.py`, `statement_tracker.py`, `extract_sublemmas.py`, `safe_verify.py`, `mcp_stats.py`) and adapts its coordinator / blueprint / sketch prompt pattern, but the inner loop is Claude Code talking to Lean through [lean-lsp-mcp](https://github.com/leanprover-community/lean-lsp-mcp).
 
 ---
 
@@ -77,76 +95,58 @@ System design and technical decisions.
 
 **Purpose:** Determine if theorems are new.
 
-**Two-Layer Approach:**
-
-#### Layer 1: Mathlib Check (via Numina)
-- Numina uses LeanDex internally
-- When formalizing, it searches Mathlib
-- If found → imports automatically
-
-**We don't reimplement this.**
-
-#### Layer 2: ArXiv Check (Our Contribution)
-- Search ArXiv corpus for similar papers
-- Compare theorem-to-theorem
-- Report: novel / exists in [paper X]
-
-**Pipeline:**
+**Pipeline (Stages 0–3 implemented):**
 
 ```
-Theorem text
+Block (theorem / lemma / proposition / corollary)
     │
     ▼
 ┌─────────────────────────────┐
-│ ArXiv Search                │
-│ (arxiv_search.py)           │
-│                             │
-│ • Semantic Scholar API      │
-│ • MSC code filtering        │
-│ • Abstract-level retrieval  │
-│                             │
-│ Output: top-20 papers       │
+│ Stage 0: Mathlib check      │
+│ (mathlib_checker.py)        │
+│ • Leandex semantic search   │
+│ • If match → IN_MATHLIB     │
 └──────────┬──────────────────┘
            │
            ▼
 ┌─────────────────────────────┐
-│ Paper Extraction            │
+│ Stage 1: ArXiv search       │
+│ (arxiv_search.py)           │
+│ • Semantic Scholar + ArXiv  │
+│ • Dedupe + threshold        │
+│ Output: top-K candidates    │
+└──────────┬──────────────────┘
+           │
+           ▼
+┌─────────────────────────────┐
+│ Stage 2: Paper extraction   │
 │ (paper_extractor.py)        │
-│                             │
 │ • Download PDFs             │
 │ • Extract text              │
-│                             │
-│ Output: paper text          │
 └──────────┬──────────────────┘
            │
            ▼
 ┌─────────────────────────────┐
-│ Theorem Extraction          │
-│ (theorem_extractor.py)      │
-│                             │
-│ • Regex patterns            │
-│ • Heuristic matching        │
-│                             │
-│ Output: theorems list       │
-└──────────┬──────────────────┘
-           │
-           ▼
-┌─────────────────────────────┐
-│ Comparison                  │
-│ (comparator.py)             │
-│                             │
-│ • Embedding similarity      │
-│ • LLM judge (top-3)         │
-│                             │
-│ Output: verdict             │
+│ Stage 3: Block comparison   │
+│ (block_comparator.py +      │
+│  llm_judge.py)              │
+│ • Pair the block with each  │
+│   candidate; Claude judges  │
+│   equivalent / specialization │
+│   generalization / different│
 └─────────────────────────────┘
 ```
 
+[novelty_checker.py](../src/novelty/novelty_checker.py) orchestrates Stages 0–3 and emits a `NoveltyLabel` per block (`NOVEL`, `NOVEL_METHOD`, `GENERALIZATION`, `NOT_NOVEL`, `IN_MATHLIB`). Stages 4–5 (formalize candidate + tree-of-types comparison) are reserved for future work; `NoveltyChecker.__init__` keeps the parameter slots for forward compatibility.
+
 **Files:**
-- `arxiv_search.py` - Search papers
-- `paper_extractor.py` - Download & extract
-- `theorem_extractor.py` - Extract theorems
-- `comparator.py` - LLM-based comparison
+- `mathlib_checker.py` - Stage 0 (Leandex)
+- `arxiv_search.py` - Stage 1 (Semantic Scholar + ArXiv, dedupe, threshold)
+- `paper_extractor.py` - Stage 2 (PDF download + text extraction)
+- `block_comparator.py` - Stage 3 pairing logic
+- `llm_judge.py` - Claude judge for theorem equivalence
+- `novelty_checker.py` - Orchestrates Stages 0–3
+- `_cache.py` - Disk cache for external API calls
 
 ---
 
@@ -154,9 +154,7 @@ Theorem text
 
 **Purpose:** Translate LaTeX → Lean 4, verify correctness.
 
-**Tool:** Numina-Lean-Agent (external)
-
-**Our Role:** Wrapper + orchestration
+**Approach:** drive Claude Code as a subprocess per block, with Lean-LSP for verification. The agent prompts are inspired by Numina-Lean-Agent's coordinator / blueprint / sketch pattern but adapted: there is **no separate proof agent** — the Sketch Agent formalizes statement and proof together using the paper's `proof_latex` as a guide.
 
 **Pipeline:**
 
@@ -168,100 +166,64 @@ Blocks (ordered topologically)
 │ Lean Project Manager        │
 │ (lean_project.py)           │
 │                             │
-│ • Create lakefile           │
-│ • Initialize Paper.lean     │
-│ • Manage imports            │
+│ • Create paper sub-module   │
+│   under Papers/<ModuleName> │
+│ • Initialize Paper.lean,    │
+│   PAPER_INDEX.md, REVIEW.md │
+│ • Reuse shared Mathlib build│
 └──────────┬──────────────────┘
            │
            ▼
 For each block:
 ┌─────────────────────────────┐
-│ Numina Interface            │
-│ (numina_interface.py)       │
+│ orchestrator.py             │
 │                             │
-│ 1. Build input:             │
-│    - Context (prev blocks)  │
-│    - Statement with sorry   │
-│                             │
-│ 2. Call Numina:             │
-│    - Auto-formalize         │
-│    - Verify with Lean-LSP   │
-│                             │
-│ 3. If success:              │
-│    - Add to Paper.lean      │
-│    - Update context         │
+│ 1. complexity.classify →    │
+│    SIMPLE / MEDIUM / HARD / │
+│    EXTERNAL                 │
+│ 2. EXTERNAL → mathlib_search│
+│    .lookup; fall back to    │
+│    axiom with source comment│
+│ 3. else: write TASK.md +    │
+│    Blocks/<lean_name>.lean  │
+│    stub, then run           │
+│    scripts/run_claude.py    │
+│    with the matching prompt │
+│ 4. lean_checker verifies    │
+│ 5. on success, extract the  │
+│    declaration and append   │
+│    to Paper.lean; update    │
+│    PAPER_INDEX.md           │
+│ 6. lake build Papers.       │
+│    <ModuleName>.Paper to    │
+│    cache the olean          │
 └─────────────────────────────┘
 ```
 
 **Key Insight:** Dependency ordering matters.
 
-Block B references Block A → Must formalize A first → A becomes context for B.
+Block B references Block A → Must formalize A first → A becomes context for B. The agent reads `PAPER_INDEX.md` first (already-proven blocks in this paper), then `lean_local_search`, then `lean_leandex` (Mathlib semantic), then `lean_loogle` (Mathlib type pattern).
 
 **Files:**
-- `lean_project.py` - Project structure
-- `numina_interface.py` - Numina wrapper
-- `orchestrator.py` - Main loop
+- `lean_project.py` - Per-paper project layout under `Papers/<ModuleName>/`
+- `complexity.py` - SIMPLE / MEDIUM / HARD / EXTERNAL classifier
+- `mathlib_search.py` - Mathlib lookup for proof-less blocks
+- `orchestrator.py` - Main loop, topo sort, resume mode, olean caching
+- `scripts/run_claude.py` - Launches Claude Code on a target file (Numina-derived)
+- `scripts/lean_checker.py` - Runs `lake env lean` against a target file
+- `scripts/{runner,task,statement_tracker,extract_sublemmas,safe_verify,mcp_stats}.py` - Numina-derived runtime utilities
 
 ---
 
-### 4. Database Module (`src/database/`)
+### 4. Persistent state
 
-**Purpose:** Persistent storage.
+Today, AViD has no database layer. The persistent state of a formalized paper lives in three files under `lean_project/Papers/<ModuleName>/`:
 
-**Schema:**
+- `Paper.lean` — the accumulative Lean module; the agent never edits this directly.
+- `PAPER_INDEX.md` — the per-paper "theorem DB": one entry per block with type, status (`verified` / `axiom` / `failed`), line in `Paper.lean`, dependencies, and (for axioms) the source citation. The agent consults this file first when searching for dependencies.
+- `REVIEW.md` — human-review log: axioms declared, blocks that failed verification, notes.
 
-```sql
--- Papers
-papers (
-  id TEXT PRIMARY KEY,
-  title TEXT,
-  authors TEXT,
-  abstract TEXT,
-  msc_codes TEXT,
-  status TEXT
-)
-
--- Blocks
-blocks (
-  id INTEGER PRIMARY KEY,
-  paper_id TEXT,
-  type TEXT,
-  label TEXT,
-  title TEXT,
-  content_latex TEXT,
-  proof_latex TEXT,
-  block_refs TEXT,  -- JSON list of references
-  FOREIGN KEY (paper_id) REFERENCES papers(id)
-)
-
--- Novelty Results
-novelty_results (
-  id INTEGER PRIMARY KEY,
-  block_id INTEGER,
-  is_novel BOOLEAN,
-  source_type TEXT,  -- 'mathlib' or 'arxiv'
-  source_ref TEXT,   -- match details
-  confidence REAL,
-  FOREIGN KEY (block_id) REFERENCES blocks(id)
-)
-
--- Lean Projects
-lean_projects (
-  id INTEGER PRIMARY KEY,
-  paper_id TEXT,
-  project_path TEXT,
-  lean_full TEXT,
-  status TEXT,
-  FOREIGN KEY (paper_id) REFERENCES papers(id)
-)
-```
-
-**Key Function:** `get_ordered_blocks_for_lean(paper_id)`
-- Returns blocks in topological order
-- Uses Kahn's algorithm on dependency graph
-
-**Files:**
-- `db.py` - All database operations
+The orchestrator owns these files. The Claude session only edits its assigned `Blocks/<lean_name>.lean` stub.
 
 ---
 
@@ -273,33 +235,30 @@ lean_projects (
 1. User submits paper.tex
          │
          ▼
-2. Parser extracts blocks → Save to DB
+2. Parser extracts blocks (list of dicts in memory)
          │
          ▼
-3. For each block (in topo order):
+3. Orchestrator: topo sort → for each block (resume mode skips done):
          │
-         ├─→ Novelty check (ArXiv)
-         │   ├─ Search papers
-         │   ├─ Extract theorems
-         │   ├─ Compare
-         │   └─ Save verdict to DB
+         ├─→ Novelty check (optional, runs independently of formalization)
+         │   ├─ Stage 0 Mathlib (Leandex)
+         │   ├─ Stage 1 ArXiv (Semantic Scholar)
+         │   ├─ Stage 2 paper extraction
+         │   └─ Stage 3 block↔candidate comparison (Claude judge)
          │
-         ├─→ Formalization (Numina)
-         │   ├─ Build Lean input
-         │   ├─ Call Numina
-         │   ├─ Verify with Lean
-         │   └─ Save to Paper.lean
-         │
-         └─→ Update block status
-         │
-         ▼
-4. Generate report:
-   - Novelty summary
-   - Verification summary
-   - Paper.lean download
+         ├─→ Formalization
+         │   ├─ classify complexity (SIMPLE / MEDIUM / HARD / EXTERNAL)
+         │   ├─ EXTERNAL → axiom with source comment
+         │   ├─ else: write TASK.md + Blocks/<lean_name>.lean stub,
+         │   │   launch Claude via scripts/run_claude.py
+         │   ├─ verify with lean_checker (lake env lean)
+         │   ├─ append verified declaration to Paper.lean
+         │   ├─ update PAPER_INDEX.md (and REVIEW.md if axiom/failed)
+         │   └─ lake build Papers.<ModuleName>.Paper (cache olean)
          │
          ▼
-5. Decision: Accept / Reject
+4. Output: Paper.lean (verified module), PAPER_INDEX.md (per-block log),
+   REVIEW.md (human review items), optional --json summary.
 ```
 
 ---
@@ -310,10 +269,6 @@ lean_projects (
 - Fast prototyping
 - Rich ecosystem (requests, numpy, sentence-transformers)
 - Easy integration with APIs
-
-### Why SQLite → PostgreSQL?
-- SQLite: Simple for MVP
-- PostgreSQL: Production (concurrent access, better querying)
 
 ### Why Numina vs. Custom Lean Tactics?
 - **Time:** 2 months MVP
@@ -338,8 +293,8 @@ lean_projects (
 
 ### Bottlenecks
 
-1. **Numina calls** (~30-60s per block)
-   - **Solution:** Async processing, progress UI
+1. **Claude Code sessions** (~30–60s per block, longer for HARD mode)
+   - **Solution:** resume mode skips already-verified blocks; olean caching avoids re-typechecking the rest of `Paper.lean` on each verification
 
 2. **ArXiv PDF downloads** (~2-5s per paper)
    - **Solution:** Cache PDFs, parallel downloads
@@ -367,26 +322,20 @@ lean_projects (
 - Limit file size
 - Virus scanning (future)
 
-### Database
-- Prepared statements (SQLite safe)
-- Input validation
-- Rate limiting (future)
-
 ---
 
 ## 🚀 Deployment Strategy
 
 ### Phase 1: Local Development (Current)
 - Run on laptop
-- SQLite database
+- Per-paper state in `PAPER_INDEX.md` / `Paper.lean` / `REVIEW.md`
 - Manual testing
 
-### Phase 2: Hosted Backend (Week 5-6)
+### Phase 2: Hosted Backend
 - FastAPI on Railway/Render
-- PostgreSQL database
 - Async job queue (Celery + Redis)
 
-### Phase 3: Full Stack (Week 7-8)
+### Phase 3: Full Stack
 - Frontend on Vercel
 - Backend API
 - CI/CD with GitHub Actions
@@ -404,7 +353,6 @@ lean_projects (
 - Horizontal scaling (multiple workers)
 - Caching layer (Redis)
 - CDN for static files
-- Database sharding
 
 ---
 
