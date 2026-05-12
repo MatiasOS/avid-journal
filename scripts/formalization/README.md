@@ -16,4 +16,7 @@ Utilidades de línea de comandos relacionadas con el pipeline LaTeX → Lean (`s
 | `debug_check_lean.py`, `debug_check_parallel.py`, `debug_encoding.py` | Depuración de `lake env lean` y subprocess. |
 | `bench_claude_overhead.py` | Micro-benchmark de la CLI de Claude (genera `bench_minimal.lean` junto al script). |
 
-Archivos auxiliares versionados aquí: `bench_minimal.lean`. Fixture Lean trivial: `tests/fixtures/mathlib_smoke.lean`.
+Archivos auxiliares versionados:
+
+- `scripts/formalization/bench_minimal.lean` — `.lean` mínimo usado por [bench_claude_overhead.py](bench_claude_overhead.py) (vive junto al script, no en `tests/fixtures/`).
+- [tests/fixtures/mathlib_smoke.lean](../../tests/fixtures/mathlib_smoke.lean) — fixture Lean trivial usado por los tests (separado de este directorio).
