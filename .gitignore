@@ -33,9 +33,6 @@ htmlcov/
 # Logs locales de ejecución
 *.log
 
-# Claude Code / Cursor artefactos locales
-.claude/
-
 # Proyectos Lean standalone generados por el orquestador (--standalone / tests)
 lean_papers/
 
