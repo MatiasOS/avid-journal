@@ -36,12 +36,61 @@ class BlockPair:
     similarity_score: float
 
 
+# ── regexes para _block_text (embedding) ─────────────────────────────────────
 _LATEX_NOISE = re.compile(
     r"\\(?:label|cite|ref|eqref|footnote)\{[^}]*\}"
 )
 _LATEX_CMD = re.compile(r"\\[a-zA-Z]+\*?")
 _LATEX_BRACES = re.compile(r"[{}]")
 _WHITESPACE = re.compile(r"\s+")
+
+# ── regexes para strip_latex_for_query (búsqueda) ────────────────────────────
+# Comandos que deben eliminarse por completo junto con su argumento.
+_QUERY_NOISE = re.compile(
+    r"\\(?:cite|ref|label|eqref|footnote|bibitem|hyperref|url)\{[^}]*\}"
+)
+# Acentos LaTeX: \'a  \"o  \`e  \^i  \~n  con o sin llaves alrededor de la letra.
+_QUERY_ACCENTS = re.compile(r"\\['\"`^~=.]{1}\{?([a-zA-Z])\}?")
+# Comandos con argumento: \textbf{word} → word, \mathbb{N} → N.
+_QUERY_CMD_WITH_ARG = re.compile(r"\\[a-zA-Z]+\*?\{([^}]*)\}")
+# Comandos restantes sin argumento: \alpha → espacio.
+_QUERY_CMD_BARE = re.compile(r"\\[a-zA-Z]+\*?")
+# Caracteres especiales LaTeX que no aportan semántica de búsqueda.
+_QUERY_SPECIAL = re.compile(r"[{}$\\~&_^]")
+_QUERY_WS = re.compile(r"\s+")
+
+
+def strip_latex_for_query(text: str) -> str:
+    """Limpia LaTeX de un string para usarlo como query de búsqueda.
+
+    Más agresivo que _block_text: extrae el contenido de argumentos
+    {…}, translitera acentos LaTeX a su letra base, y elimina comandos
+    de citación/referencia por completo. Diseñado para producir texto
+    plano legible que funcione como query en Semantic Scholar / ArXiv.
+
+    Extiende la misma estrategia de los regexes privados usados por
+    _block_text, añadiendo manejo de acentos y preservación de contenido.
+
+    Ejemplos:
+        "Commutativity of addition"         → "Commutativity of addition"
+        "S\\'ark\\"ozy~\\cite{Sarkozy2001}" → "Sarkozy"
+        "\\textbf{Lagrange}'s theorem"      → "Lagrange 's theorem"
+    """
+    if not text:
+        return ""
+    # 1. Eliminar comandos ruidosos completos (comando + argumento).
+    text = _QUERY_NOISE.sub(" ", text)
+    # 2. Transliterar acentos: \'a → a, \"o → o, \^e → e, etc.
+    text = _QUERY_ACCENTS.sub(r"\1", text)
+    # 3. Comandos con argumento: \textbf{word} → word.
+    text = _QUERY_CMD_WITH_ARG.sub(r"\1", text)
+    # 4. Comandos sin argumento restantes: \alpha → espacio.
+    text = _QUERY_CMD_BARE.sub(" ", text)
+    # 5. Caracteres especiales LaTeX (incluyendo ~ no-break-space).
+    text = _QUERY_SPECIAL.sub(" ", text)
+    # 6. Colapsar whitespace.
+    text = _QUERY_WS.sub(" ", text)
+    return text.strip()
 
 
 def _block_text(block: Dict[str, Any]) -> str:
