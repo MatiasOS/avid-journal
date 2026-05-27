@@ -32,6 +32,11 @@ USER_AGENT = "AViD-Journal/0.1 (https://github.com/ayrtonporto/avid-journal)"
 REQUEST_TIMEOUT = 60
 METADATA_TIMEOUT = 10
 
+# Backoff exponencial para descarga de tarballs.
+# Misma política que arxiv_search._fetch_arxiv: 429/503/errores de red son
+# retryables; otros 4xx (404, etc.) no. 3 reintentos = 4 intentos totales.
+EPRINT_RETRY_DELAYS: tuple = (5, 15, 45)  # segundos
+
 # Atom namespace usado por la API de ArXiv
 _ATOM_NS = "http://www.w3.org/2005/Atom"
 
@@ -163,19 +168,79 @@ def fetch_abstract(arxiv_id: str, use_cache: bool = True) -> str:
 # ---------------------------------------------------------------------------
 
 def _download_eprint(arxiv_id: str) -> Optional[bytes]:
+    """Descarga el tarball de fuentes LaTeX de un paper de ArXiv con backoff
+    exponencial ante 429/503 y errores de red.
+
+    Política de retry (ver EPRINT_RETRY_DELAYS):
+      - HTTP 429, 503      → retryable
+      - otros 4xx (≠ 429)  → no retryable (devuelve None inmediatamente)
+      - errores de red     → retryable
+    Si todos los intentos fallan, devuelve None y loguea ERROR.
+    """
     url = ARXIV_EPRINT_URL.format(arxiv_id=arxiv_id)
-    try:
-        response = requests.get(
-            url,
-            timeout=REQUEST_TIMEOUT,
-            headers={"User-Agent": USER_AGENT},
-            allow_redirects=True,
+    total_attempts = len(EPRINT_RETRY_DELAYS) + 1
+
+    for attempt, delay in enumerate((*EPRINT_RETRY_DELAYS, None), start=1):
+        try:
+            response = requests.get(
+                url,
+                timeout=REQUEST_TIMEOUT,
+                headers={"User-Agent": USER_AGENT},
+                allow_redirects=True,
+            )
+        except requests.RequestException as exc:
+            if delay is None:
+                logger.error(
+                    "Download %s failed after %d/%d attempts (network): %s",
+                    url, attempt, total_attempts, exc,
+                )
+                return None
+            logger.warning(
+                "Download %s attempt %d/%d failed (network): %s — retrying in %ds",
+                url, attempt, total_attempts, exc, delay,
+            )
+            time.sleep(delay)
+            continue
+
+        status = response.status_code
+        if status == 200:
+            return response.content
+
+        if status in (429, 503):
+            if delay is None:
+                logger.error(
+                    "Download %s returned HTTP %d after %d/%d attempts",
+                    url, status, attempt, total_attempts,
+                )
+                return None
+            logger.warning(
+                "Download %s attempt %d/%d returned HTTP %d — retrying in %ds",
+                url, attempt, total_attempts, status, delay,
+            )
+            time.sleep(delay)
+            continue
+
+        # Otros 4xx o 5xx inesperados — no retryable para 4xx, retryable para 5xx
+        if 400 <= status < 500:
+            logger.warning(
+                "Download %s returned HTTP %d (not retrying)", url, status
+            )
+            return None
+
+        # 5xx distintos de 503 (500, 502, 504…) — tratar como retryable
+        if delay is None:
+            logger.error(
+                "Download %s returned HTTP %d after %d/%d attempts",
+                url, status, attempt, total_attempts,
+            )
+            return None
+        logger.warning(
+            "Download %s attempt %d/%d returned HTTP %d — retrying in %ds",
+            url, attempt, total_attempts, status, delay,
         )
-        response.raise_for_status()
-    except requests.RequestException as exc:
-        logger.warning("Failed to download %s: %s", url, exc)
-        return None
-    return response.content
+        time.sleep(delay)
+
+    return None  # nunca se alcanza, satisface al type checker
 
 
 def _extract_archive(data: bytes, dest_dir: Path) -> bool:

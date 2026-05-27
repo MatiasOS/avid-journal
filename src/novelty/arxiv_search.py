@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
+import time
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -33,6 +35,24 @@ logger = logging.getLogger(__name__)
 SEMANTIC_SCHOLAR_ENDPOINT = "https://api.semanticscholar.org/graph/v1/paper/search"
 SEMANTIC_SCHOLAR_FIELDS = "title,abstract,externalIds,embedding"
 REQUEST_TIMEOUT = 30
+
+# Rate limiting: SS permite 1 req/s sin key y ~10 req/s con key.
+# Usamos 1.1 s como intervalo minimo conservador para el modo anonimo;
+# con API key el pipeline puede reducirlo, pero 1.1 s es seguro para ambos.
+SS_MIN_INTERVAL: float = 1.1  # segundos entre llamadas a SS
+
+_ss_rate_lock = threading.Lock()
+_ss_last_call: float = 0.0  # tiempo monotónico del último request SS
+
+# Warning de modo anónimo: se emite solo una vez por proceso.
+_ss_anon_warning_emitted = False
+
+# Backoff para llamadas a ArXiv (search y descarga de tarballs).
+# La librería `arxiv` tiene retries internos (num_retries=3, delay plano),
+# pero reintentan TODOS los HTTP errors incluido 404, sin backoff exponencial.
+# Solución: Client(num_retries=0, delay_seconds=0) + nuestro propio loop que
+# distingue 429/503 (retryable) de otros 4xx (no retryable).
+ARXIV_RETRY_DELAYS: tuple = (5, 15, 45)  # segundos; 3 reintentos = 4 intentos
 
 
 @dataclass
@@ -81,11 +101,38 @@ def _cosine_similarity_text(a: str, b: str) -> float:
 # ---------------------------------------------------------------------------
 
 def _ss_headers() -> Dict[str, str]:
+    """Construye los headers HTTP para Semantic Scholar.
+
+    Si `SEMANTIC_SCHOLAR_API_KEY` está configurada, la incluye como
+    `x-api-key`. Si no, emite un warning una sola vez por proceso informando
+    que se usará el modo anónimo con rate limits estrictos (1 req/s).
+    """
+    global _ss_anon_warning_emitted
     api_key = os.getenv("SEMANTIC_SCHOLAR_API_KEY", "").strip()
     headers = {"Accept": "application/json"}
     if api_key:
         headers["x-api-key"] = api_key
+    elif not _ss_anon_warning_emitted:
+        logger.warning(
+            "SEMANTIC_SCHOLAR_API_KEY not configured — using anonymous mode "
+            "with strict rate limits (1 req/s). Set the key in .env to increase "
+            "throughput. See .env.example for the variable name."
+        )
+        _ss_anon_warning_emitted = True
     return headers
+
+
+def _ss_rate_limit() -> None:
+    """Bloquea hasta que hayan pasado al menos SS_MIN_INTERVAL segundos desde
+    la última llamada a Semantic Scholar. Thread-safe.
+    """
+    global _ss_last_call
+    with _ss_rate_lock:
+        now = time.monotonic()
+        elapsed = now - _ss_last_call
+        if elapsed < SS_MIN_INTERVAL:
+            time.sleep(SS_MIN_INTERVAL - elapsed)
+        _ss_last_call = time.monotonic()
 
 
 def _truncate_query(text: str, max_chars: int = 250) -> str:
@@ -96,6 +143,7 @@ def _truncate_query(text: str, max_chars: int = 250) -> str:
 
 
 def _fetch_semantic_scholar(query: str, top_k: int) -> Dict[str, Any]:
+    _ss_rate_limit()
     try:
         response = requests.get(
             SEMANTIC_SCHOLAR_ENDPOINT,
@@ -173,37 +221,103 @@ def search_semantic_scholar(
 # ArXiv
 # ---------------------------------------------------------------------------
 
+def _arxiv_fetch_once(client: Any, search: Any) -> List[Dict[str, Any]]:
+    """Un solo intento de búsqueda ArXiv. Puede lanzar arxiv.HTTPError o
+    requests.RequestException — el llamador decide si reintenta.
+
+    Recibe `client` y `search` ya construidos para desacoplar la lógica de
+    retry de la de parsing, y facilitar el mock en tests.
+    """
+    results = []
+    for r in client.results(search):
+        arxiv_id = r.entry_id.rsplit("/", 1)[-1]
+        arxiv_id = arxiv_id.replace("abs/", "")
+        if "v" in arxiv_id:
+            arxiv_id = (
+                arxiv_id.split("v", 1)[0]
+                if arxiv_id.split("v", 1)[1].isdigit()
+                else arxiv_id
+            )
+        results.append(
+            {
+                "paper_id": r.entry_id,
+                "title": r.title or "",
+                "abstract": r.summary or "",
+                "arxiv_id": arxiv_id,
+            }
+        )
+    return results
+
+
 def _fetch_arxiv(query: str, top_k: int) -> List[Dict[str, Any]]:
+    """Busca en ArXiv con backoff exponencial ante 429/503 y errores de red.
+
+    Usa arxiv.Client(num_retries=0, delay_seconds=0) para desactivar los
+    retries internos de la librería (que reintentan todos los HTTP errors,
+    incluido 404) y gestionar el backoff nosotros con lógica selectiva:
+      - 429, 503           → retryable (rate limit / overload transitorio)
+      - otros 4xx (≠ 429)  → no retryable (error del cliente, no volver a intentar)
+      - errores de red     → retryable
+
+    Delays: ARXIV_RETRY_DELAYS (5s, 15s, 45s). Máximo 3 reintentos (4 intentos).
+    Si todos fallan, devuelve [] y loguea ERROR (no lanza excepción).
+    """
     try:
         import arxiv
     except ImportError:
         logger.warning("arxiv package not installed")
         return []
 
-    try:
-        search = arxiv.Search(
-            query=query,
-            max_results=top_k,
-            sort_by=arxiv.SortCriterion.Relevance,
-        )
-        results = []
-        for r in search.results():
-            arxiv_id = r.entry_id.rsplit("/", 1)[-1]
-            arxiv_id = arxiv_id.replace("abs/", "")
-            if "v" in arxiv_id:
-                arxiv_id = arxiv_id.split("v", 1)[0] if arxiv_id.split("v", 1)[1].isdigit() else arxiv_id
-            results.append(
-                {
-                    "paper_id": r.entry_id,
-                    "title": r.title or "",
-                    "abstract": r.summary or "",
-                    "arxiv_id": arxiv_id,
-                }
+    client = arxiv.Client(num_retries=0, delay_seconds=0)
+    search = arxiv.Search(
+        query=query,
+        max_results=top_k,
+        sort_by=arxiv.SortCriterion.Relevance,
+    )
+    total_attempts = len(ARXIV_RETRY_DELAYS) + 1
+
+    for attempt, delay in enumerate((*ARXIV_RETRY_DELAYS, None), start=1):
+        try:
+            return _arxiv_fetch_once(client, search)
+
+        except arxiv.HTTPError as exc:
+            status = exc.status
+            if status != 429 and 400 <= status < 500:
+                # Error de cliente no retryable (e.g. 404 bad query)
+                logger.warning(
+                    "ArXiv search returned HTTP %d (not retrying): %s", status, exc
+                )
+                return []
+            if delay is None:
+                logger.error(
+                    "ArXiv search failed after %d/%d attempts (HTTP %d): %s",
+                    attempt, total_attempts, status, exc,
+                )
+                return []
+            logger.warning(
+                "ArXiv search attempt %d/%d returned HTTP %d — retrying in %ds",
+                attempt, total_attempts, status, delay,
             )
-        return results
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("ArXiv search failed: %s", exc)
-        return []
+            time.sleep(delay)
+
+        except requests.RequestException as exc:
+            if delay is None:
+                logger.error(
+                    "ArXiv search failed after %d/%d attempts (network): %s",
+                    attempt, total_attempts, exc,
+                )
+                return []
+            logger.warning(
+                "ArXiv search attempt %d/%d failed (network): %s — retrying in %ds",
+                attempt, total_attempts, exc, delay,
+            )
+            time.sleep(delay)
+
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("ArXiv search unexpected error: %s", exc)
+            return []
+
+    return []  # nunca se alcanza, pero satisface al type checker
 
 
 def search_arxiv(
