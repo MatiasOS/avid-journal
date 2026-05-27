@@ -21,36 +21,47 @@ This is critical infrastructure for AI-driven mathematical research — when AIs
 .tex Paper
     │
     ▼
-┌─────────────────────────┐
-│ PARSER                  │  → Extract mathematical blocks
-│ src/parser/             │     (theorems, lemmas, definitions)
-└───────────┬─────────────┘
-            │
-            ▼
-┌─────────────────────────┐
-│ FORMALIZATION           │  → Translate to Lean 4
-│ src/formalization/      │     (Numina-Lean-Agent)
-└───────────┬─────────────┘
-            │
-            ▼
-┌─────────────────────────┐
-│ VERIFICATION            │  → Prove correctness
-│ Lean 4 Compiler         │     (formal verification)
-└───────────┬─────────────┘
-            │
-            ▼
-┌─────────────────────────┐
-│ NOVELTY CHECK           │  → Check if new
-│ src/novelty/            │     • Mathlib (via Numina/LeanDex)
-│                         │     • ArXiv corpus
-└───────────┬─────────────┘
-            │
-            ▼
-┌─────────────────────────┐
-│ DECISION                │  → Accept / Reject
-│ src/journal/            │     + Citation report
-└─────────────────────────┘
+┌─────────────────────────────┐
+│ PARSER                      │  → Extract blocks + dependency graph
+│ src/parser/                 │     (theorems, lemmas, definitions)
+└──────────────┬──────────────┘
+               │ blocks in topological order
+               ▼
+╔═════════════ orchestrator (src/formalization/) ═══════════════╗
+║                                                               ║
+║   for each block (resume mode skips done):                    ║
+║     ┌─────────────────────────────────────────────────────┐   ║
+║     │ FORMALIZATION + VERIFICATION (per-block loop)       │   ║
+║     │                                                     │   ║
+║     │   Claude Code session (Numina-derived runner):      │   ║
+║     │     • writes / edits Blocks/<lean_name>.lean        │   ║
+║     │     • calls lean_diagnostic_messages                │   ║
+║     │     • iterates until clean or max_rounds            │   ║
+║     │                                                     │   ║
+║     │   then orchestrator:                                │   ║
+║     │     • final lean_checker pass                       │   ║
+║     │     • appends declaration → Paper.lean              │   ║
+║     │     • updates PAPER_INDEX.md / REVIEW.md            │   ║
+║     │     • lake build Papers.<ModuleName>.Paper (olean)  │   ║
+║     └─────────────────────────────────────────────────────┘   ║
+║                                                               ║
+╚═══════════════════════════════════════════════════════════════╝
+               │
+               ▼
+┌─────────────────────────────┐
+│ NOVELTY CHECK (separate pass)│  → Check if new
+│ src/novelty/                 │     • Stage 0: Mathlib via Leandex
+│                              │     • Stages 1–3: ArXiv + LLM judge
+└──────────────┬──────────────┘
+               │
+               ▼
+┌─────────────────────────────┐
+│ DECISION                    │  → Accept / Reject
+│ orchestrator + report       │     + Citation report
+└─────────────────────────────┘
 ```
+
+The agent that writes Lean is **Claude Code**, not Numina. AViD vendors Numina-Lean-Agent's runner scripts (`run_claude.py`, `runner.py`, `lean_checker.py`, …) and its coordinator / blueprint / sketch prompt pattern, but the agent loop itself is Claude Code calling `lean_diagnostic_messages` via [lean-lsp-mcp](https://github.com/leanprover-community/lean-lsp-mcp).
 
 ---
 
@@ -59,54 +70,60 @@ This is critical infrastructure for AI-driven mathematical research — when AIs
 ```
 avid-journal/
 │
-├── examples/               # LaTeX de ejemplo públicos (+ README índice)
+├── examples/                       # LaTeX inputs with checked-in Lean output
 │   ├── tiny_even_numbers/paper.tex
 │   └── thesis_ayrton_porto/paper.tex
 │
 ├── src/
-│   ├── parser/              # LaTeX parsing
+│   ├── parser/                     # LaTeX → blocks + dependency graph
 │   │   ├── latex_parser.py
 │   │   └── parse_tex.py
 │   │
-│   ├── novelty/             # Novelty detection
-│   │   ├── arxiv_search.py      # ArXiv paper search
-│   │   ├── paper_extractor.py   # PDF download & extraction
-│   │   ├── theorem_extractor.py # Extract theorems from text
-│   │   └── comparator.py        # Theorem comparison (LLM judge)
+│   ├── novelty/                    # Novelty detection (Stages 0–3)
+│   │   ├── mathlib_checker.py      # Stage 0: Leandex search in Mathlib
+│   │   ├── arxiv_search.py         # Stage 1: Semantic Scholar + ArXiv
+│   │   ├── paper_extractor.py      # Stage 2: PDF download & text extraction
+│   │   ├── block_comparator.py     # Stage 3: block ↔ candidate comparison
+│   │   ├── llm_judge.py            # Claude judge for theorem equivalence
+│   │   ├── novelty_checker.py      # Orchestrates Stages 0–3
+│   │   └── _cache.py               # Disk cache for external API calls
 │   │
-│   ├── formalization/       # Lean 4 formalization
-│   │   ├── numina_interface.py  # Numina-Lean-Agent wrapper
-│   │   ├── lean_project.py      # Lean project manager
-│   │   └── orchestrator.py      # Main orchestration
-│   │
-│   ├── database/            # Data persistence
-│   │   └── db.py
-│   │
-│   └── web/                 # Web interface (future)
-│       └── (pending)
+│   └── formalization/              # Lean 4 formalization pipeline
+│       ├── orchestrator.py         # Main loop (topo sort + per-block driver)
+│       ├── lean_project.py         # Shared Lean project + per-paper sub-modules
+│       ├── complexity.py           # SIMPLE / MEDIUM / HARD / EXTERNAL classifier
+│       ├── mathlib_search.py       # Mathlib lookup for external results
+│       └── scripts/                # Numina-derived Claude runner + lean_checker
+│
+├── prompts/                        # Agent prompts driven by complexity mode
+│   ├── prompt_avid.txt             # SIMPLE
+│   ├── prompt_medium_mode_avid.txt # MEDIUM
+│   ├── prompt_hard_mode_avid.txt   # HARD
+│   └── docs/prompts/               # coordinator / blueprint / sketch / common
+│
+├── lean_project/                   # Shared Lean 4 project (Mathlib precompiled)
+│   ├── lakefile.toml
+│   ├── lean-toolchain
+│   └── Papers/<ModuleName>/        # One sub-module per formalized paper
 │
 ├── scripts/
-│   └── formalization/      # Utilidades CLI (tesis, rebuild, smoke, depuración Lean)
-│       └── README.md
+│   └── formalization/              # CLI helpers (diagnose, rebuild, smoke, etc.)
 │
-├── tests/                   # Testing
-│   ├── test_parser.py
+├── tests/
+│   ├── test_orchestrator.py
 │   ├── test_novelty.py
-│   └── golden_datasets/
-│       └── boolean_algebra.json
+│   └── fixtures/
 │
-├── docs/                    # Documentation
+├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── PROGRESS.md
-│   └── API.md
+│   └── GUIA_INSTALACION_Y_USO.md
 │
-├── examples/                # Example papers
-│   └── boolean_algebra_sample.tex
-│
+├── .env.example
 ├── .gitignore
 ├── requirements.txt
-├── setup.py                 # Package setup
-└── README.md               # This file
+├── setup.sh
+└── README.md
 ```
 
 ---
@@ -137,82 +154,56 @@ pip install -r requirements.txt
 ### Usage
 
 **1. Parse a LaTeX paper:**
+
 ```bash
 python src/parser/parse_tex.py paper.tex --stats
 ```
 
 **2. Check novelty (ArXiv search):**
+
 ```bash
 python src/novelty/arxiv_search.py "Boolean algebra isomorphism" --top-k 10
 ```
 
-**3. Full pipeline (future):**
+**3. Full formalization pipeline:**
+
 ```bash
-python src/journal/process_paper.py paper.tex -o report.json
+python -X utf8 -m src.formalization.orchestrator paper.tex --title "Paper Title"
 ```
+
+Resume mode is on by default — blocks already marked `verified`/`axiom` in `PAPER_INDEX.md` are skipped. Use `--blocks-range "1-13"` to formalize a subset, `--dry-run` to validate the pipeline without spending Claude credits.
 
 ---
 
 ## 📊 Current Status
 
-**Last Updated:** February 20, 2025
-
-### ✅ Completed
-
-- [x] LaTeX parser with dependency graph extraction
-- [x] Database schema with topological sorting
-- [x] Numina-Lean-Agent integration structure
-- [x] Lean project manager (Paper.lean generation)
-
-### ⏳ In Progress
-
-- [ ] **ArXiv paper search** (Semantic Scholar API) ← **CURRENT FOCUS**
-- [ ] PDF extraction and theorem extraction
-- [ ] Theorem comparison (LLM-as-judge)
-
-### 🔜 Planned
-
-- [ ] Web interface for paper submission
-- [ ] Quality assessment module
-- [ ] Full end-to-end pipeline
-- [ ] Deployment infrastructure
-
-See [PROGRESS.md](docs/PROGRESS.md) for detailed roadmap.
+See [docs/PROGRESS.md](docs/PROGRESS.md) for the up-to-date breakdown of what's done, in progress, and planned.
 
 ---
 
 ## 🧪 Testing
 
 ```bash
-# Run all tests
+# Full test suite
 pytest tests/
 
-# Test parser
-python tests/test_parser.py
+# Skip tests that hit Leandex / Semantic Scholar / ArXiv / Anthropic
+pytest -m "not live"
 
-# Test novelty check with golden dataset
-python tests/test_novelty.py --dataset tests/golden_datasets/boolean_algebra.json
+# Orchestrator dry-run (no Claude credits spent)
+python tests/test_orchestrator.py
 ```
 
 ---
 
 ## 📖 Documentation
 
-- [Architecture](docs/ARCHITECTURE.md) - System design and components
-- [Progress](docs/PROGRESS.md) - Development roadmap and status
-- [API](docs/API.md) - Module interfaces and usage
-
-### Lean formalization pipeline (Claude Code + Mathlib)
-
-**Git/GitHub first-time setup (Spanish, submodule Mathlib vs Numina):** **[docs/GIT_Y_GITHUB_DESDE_CERO.md](docs/GIT_Y_GITHUB_DESDE_CERO.md)**
-
-**Git/GitHub desde cero** (commits, push, Mathlib sin subir, Numina como submódulo): **[docs/GIT_Y_GITHUB_DESDE_CERO.md](docs/GIT_Y_GITHUB_DESDE_CERO.md)**
-
-**PowerShell: errores `lean_project`, identidad y submódulo Numina:** **[docs/PASOS_PUSH_WINDOWS.md](docs/PASOS_PUSH_WINDOWS.md)**
-
-Step-by-step setup (Spanish): **[docs/GUIA_INSTALACION_Y_USO.md](docs/GUIA_INSTALACION_Y_USO.md)** — installing Lean/elan, Lake/Mathlib, Python, Claude CLI, running the orchestrator, repo layout, editing prompts, and publishing to GitHub.
-
-**Worked examples (LaTeX sources + checked-in Lean):** see **[examples/README.md](examples/README.md)** — tiny even-numbers paper and thesis excerpt project.
+- [docs/QUICKSTART.md](docs/QUICKSTART.md) — first 10 minutes after cloning
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — module-level design and data flow
+- [docs/GUIA_INSTALACION_Y_USO.md](docs/GUIA_INSTALACION_Y_USO.md) — full Spanish setup walkthrough (Lean/elan, Lake/Mathlib, Python, Claude CLI, orchestrator usage)
+- [docs/PROGRESS.md](docs/PROGRESS.md) — status of each component
+- [examples/README.md](examples/README.md) — worked LaTeX examples and how to reproduce their Lean output
+- [scripts/formalization/README.md](scripts/formalization/README.md) — helper CLI index
 
 ---
 
