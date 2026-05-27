@@ -41,6 +41,10 @@ Sean $(X,\tau)$ un espacio topológico y $V \subseteq X$. Las siguientes afirmac
 
 
 
+
+
+
+
 ### `def:espacios-T` (definition)
 - **Paper.lean**: linea 206
 - **Enunciado**:
@@ -222,6 +226,60 @@ a \vee (b \wedge c) = (a \vee b) \wedge (a \vee c).
 
 ### `def:filtro` (definition)
 - **Paper.lean**: linea 376
+- **Enunciado**:
+
+```
+Sea \( \mathbb{L}=(L,\wedge,\vee) \) un retículo. 
+Un subconjunto no vacío \( F \subseteq L \) se llama filtro si satisface:
+\begin{enumerate}[\normalfont (1)]
+ \item \( F \) es creciente con respecto al orden de \( \mathbb{L} \);
+ \item si \( a,b \) pertenecen a \( F \), entonces \( a\wedge b \) también pertenece a \( F \)
+ (es decir, \( F \) es cerrado bajo ínfimos).
+\end{enumerate}
+Un filtro \( F \) se dira propio si $F \neq L$, es decir, está propiamente contenido en \( L \).
+```
+
+### `block_27` (definition)
+- **Paper.lean**: linea 466
+- **Enunciado**:
+
+```
+Un retículo es un álgebra \( \mathbb{L}=(L,\wedge,\vee) \) de tipo \((2,2)\) tal que, para cualesquiera \( a,b,c \in L \), se cumplen las siguientes igualdades:
+\begin{enumerate}[\normalfont (1)]
+ \item \( a \wedge (b \wedge c) = (a \wedge b) \wedge c \) y \( a \vee (b \vee c) = (a \vee b) \vee c \);
+ \item \( a \wedge b = b \wedge a \) y \( a \vee b = b \vee a \);
+ \item \( a \wedge a = a \) y \( a \vee a = a \);
+ \item \( a \wedge (b \vee a) = a \) y \( a \vee (b \wedge a) = a \).
+\end{enumerate}
+```
+
+### `block_28` (definition)
+- **Paper.lean**: linea 470
+- **Enunciado**:
+
+```
+Un retículo \( \mathbb{L}=(L,\wedge,\vee) \) posee un primer elemento (o elemento inferior) si existe \( 0 \in L \) tal que \( 0 \wedge a = 0 \) para todo \( a \). 
+De modo dual, posee un último elemento (o elemento superior) si existe \( 1 \in L \) tal que \( a \vee 1 = 1 \) para todo \( a \). 
+Cuando existen ambos, se dice que el retículo es acotado.
+```
+
+### `def:reticulo_distributivo` (definition)
+- **Paper.lean**: linea 474
+- **Enunciado**:
+
+```
+Un retículo \( \mathbb{L}=(L,\wedge,\vee) \) es distributivo si para todo \( a,b,c \in L \) se cumple
+\[
+a \wedge (b \vee c) = (a \wedge b) \vee (a \wedge c).
+\]
+Esta condición es equivalente a su forma dual:
+\[
+a \vee (b \wedge c) = (a \vee b) \wedge (a \vee c).
+\]
+```
+
+### `def:filtro` (definition)
+- **Paper.lean**: linea 478
 - **Enunciado**:
 
 ```

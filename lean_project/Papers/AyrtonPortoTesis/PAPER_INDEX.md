@@ -185,3 +185,92 @@ Depends on: —
 Statement: Sea $\mathsf{C}$ una categoría.  Una subcategoría $\mathsf{D}$ de $\mathsf{C}$ consta de:  \begin{enumerate}[\normalfont (a)]  \item una colección de objetos $\mathrm{Ob}(\mathsf{D})$, donde cada obje...
 
 ---
+## def: funtor
+Type: definition
+Status: ✅ verified
+File: Paper.lean:339
+Depends on: —
+Statement: Sean \( \mathsf{C} \) y \( \mathsf{D} \) categorías. Un funtor covariante es un mapeo \( F\colon\mathsf{C}\to\mathsf{D} \) que asigna: \begin{enumerate}[\normalfont (1)]  \item a cada objeto \( x \) d...
+
+---
+
+## block_22
+Type: definition
+Status: ✅ verified
+File: Paper.lean:369
+Depends on: —
+Statement: Dada una categoría \( \mathsf{C} \), se define el funtor identidad \[ \mathrm{I}_{\mathsf{C}}\colon \mathsf{C}\to\mathsf{C}, \qquad \mathrm{I}_{\mathsf{C}}(x)=x,\quad \mathrm{I}_{\mathsf{C}}(f)=f. \]
+
+---
+
+## def:transf-nat
+Type: definition
+Status: ✅ verified
+File: Paper.lean:379
+Depends on: —
+Statement: Sean $F,G \colon \mathsf{C} \to \mathsf{D}$ dos funtores covariantes.  Una transformación natural $\theta \colon F \Rightarrow G$ es una asignación que a cada objeto $X$ de $\mathsf{C}$ le asocia un m...
+
+---
+
+## block_24
+Type: definition
+Status: ✅ verified
+File: Paper.lean:402
+Depends on: —
+Statement: Sean \( \mathsf{C} \) y \( \mathsf{D} \) categorías. Una equivalencia de categorías entre \( \mathsf{C} \) y \( \mathsf{D} \) está dada por un par de funtores covariantes \[ F\colon\mathsf{C}\to\maths...
+
+---
+
+## def:equivalencia-dual
+Type: definition
+Status: ✅ verified
+File: Paper.lean:439
+Depends on: —
+Statement: Sean \( \mathsf{C} \) y \( \mathsf{D} \) dos categorías. Diremos que \( \mathsf{C} \) y \( \mathsf{D} \) son dualmente equivalentes si existe una equivalencia de categorías entre \( \mathsf{C} \) y \(...
+
+---
+
+## def:isomorfismo-categorias
+Type: definition
+Status: ✅ verified
+File: Paper.lean:445
+Depends on: —
+Statement: Sean \( \mathsf{C} \) y \( \mathsf{D} \) dos categorías. Decimos que \( \mathsf{C} \) y \( \mathsf{D} \) son isomorfas si existen funtores \[ F\colon \mathsf{C} \longrightarrow \mathsf{D}, \qquad G\co...
+
+---
+
+## block_27
+Type: definition
+Status: ✅ verified
+File: Paper.lean:464
+Depends on: —
+Statement: Un retículo es un álgebra \( \mathbb{L}=(L,\wedge,\vee) \) de tipo \((2,2)\) tal que, para cualesquiera \( a,b,c \in L \), se cumplen las siguientes igualdades: \begin{enumerate}[\normalfont (1)]  \it...
+
+---
+
+## block_28
+Type: definition
+Status: ❌ failed
+File: Paper.lean:470
+Depends on: —
+Statement: Un retículo \( \mathbb{L}=(L,\wedge,\vee) \) posee un primer elemento (o elemento inferior) si existe \( 0 \in L \) tal que \( 0 \wedge a = 0 \) para todo \( a \).  De modo dual, posee un último eleme...
+
+---
+
+## def:reticulo_distributivo
+Type: definition
+Status: ❌ failed
+File: Paper.lean:474
+Depends on: —
+Statement: Un retículo \( \mathbb{L}=(L,\wedge,\vee) \) es distributivo si para todo \( a,b,c \in L \) se cumple \[ a \wedge (b \vee c) = (a \wedge b) \vee (a \wedge c). \] Esta condición es equivalente a su for...
+
+---
+
+## def:filtro
+Type: definition
+Status: ❌ failed
+File: Paper.lean:478
+Depends on: —
+Statement: Sea \( \mathbb{L}=(L,\wedge,\vee) \) un retículo.  Un subconjunto no vacío \( F \subseteq L \) se llama filtro si satisface: \begin{enumerate}[\normalfont (1)]  \item \( F \) es creciente con respecto...
+
+---

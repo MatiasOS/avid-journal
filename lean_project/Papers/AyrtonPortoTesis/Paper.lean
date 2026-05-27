@@ -336,3 +336,152 @@ structure block_20 (C : Categoria.{u, v}) where
     en ObD pertenece a FleD. -/
 def isPlena {C : Categoria.{u, v}} (D : block_20 C) : Prop :=
   forall (f : C.Fle), D.ObD (C.Dom f) -> D.ObD (C.Cod f) -> D.FleD f
+universe u1 v1 u2 v2
+
+/-- Un funtor covariante F : C -> D entre categorias es un mapeo que asigna
+    a cada objeto x de C un objeto F(x) de D, y a cada morfismo f : x -> y de C
+    un morfismo F(f) : F(x) -> F(y) de D, preservando identidades y composicion:
+    F(Id_x) = Id_{F(x)} y F(g ∘ f) = F(g) ∘ F(f).
+    Un funtor contravariante F : C -> D invierte la direccion de los morfismos,
+    de modo que f : x -> y produce F(f) : F(y) -> F(x); equivalentemente,
+    es un funtor covariante C^op -> D. -/
+structure def_funtor (C : Categoria.{u1, v1}) (D : Categoria.{u2, v2}) where
+  /-- Accion sobre objetos -/
+  mapObj : C.Ob -> D.Ob
+  /-- Accion sobre morfismos -/
+  mapFle : C.Fle -> D.Fle
+  /-- Preservacion del dominio -/
+  dom_map : forall f : C.Fle, D.Dom (mapFle f) = mapObj (C.Dom f)
+  /-- Preservacion del codominio -/
+  cod_map : forall f : C.Fle, D.Cod (mapFle f) = mapObj (C.Cod f)
+  /-- Preservacion de identidades: F(Id_x) = Id_{F(x)} -/
+  map_id : forall x : C.Ob, mapFle (C.id x) = D.id (mapObj x)
+  /-- Preservacion de la composicion: F(g ∘ f) = F(g) ∘ F(f) -/
+  map_comp : forall (f g : C.Fle) (h : C.Cod f = C.Dom g),
+               mapFle (C.comp f g h) =
+               D.comp (mapFle f) (mapFle g)
+                 ((cod_map f).trans ((congrArg mapObj h).trans (dom_map g).symm))
+
+/-- Un funtor contravariante C -> D es un funtor covariante C^op -> D. -/
+abbrev FuntorContra (C : Categoria.{u1, v1}) (D : Categoria.{u2, v2}) :=
+  def_funtor (block_19 C) D
+
+/-- El funtor identidad I_C : C -> C que envia cada objeto a si mismo
+    y cada morfismo a si mismo. -/
+def block_22 (C : Categoria) : def_funtor C C where
+  mapObj x := x
+  mapFle f := f
+  dom_map _ := rfl
+  cod_map _ := rfl
+  map_id _ := rfl
+  map_comp _ _ _ := rfl
+
+/-- Una transformacion natural theta : F => G entre funtores covariantes
+    F, G : C -> D es una familia de morfismos theta_X : F(X) -> G(X) en D,
+    indexada por los objetos X de C, de manera que para cada morfismo
+    f : X -> Y en C el siguiente cuadrado conmuta:
+       theta_X ; G(f) = F(f) ; theta_Y
+    (escribiendo la composicion en orden diagramatico: primero la izquierda,
+    luego la derecha). -/
+structure def_transf_nat {C : Categoria.{u1, v1}} {D : Categoria.{u2, v2}}
+    (F G : def_funtor C D) where
+  /-- La componente en cada objeto X: un morfismo en D con Dom = F(X), Cod = G(X) -/
+  component : C.Ob -> D.Fle
+  /-- La componente theta_X tiene dominio F(X) -/
+  dom_cond  : forall X : C.Ob, D.Dom (component X) = F.mapObj X
+  /-- La componente theta_X tiene codominio G(X) -/
+  cod_cond  : forall X : C.Ob, D.Cod (component X) = G.mapObj X
+  /-- Condicion de naturalidad: theta_X ; G(f) = F(f) ; theta_Y
+      Es decir, G(f) circ theta_X = theta_Y circ F(f) -/
+  naturality : forall (f : C.Fle),
+    D.comp (component (C.Dom f)) (G.mapFle f)
+      ((cod_cond (C.Dom f)).trans (G.dom_map f).symm) =
+    D.comp (F.mapFle f) (component (C.Cod f))
+      ((F.cod_map f).trans (dom_cond (C.Cod f)).symm)
+
+-- Composicion de funtores: dada F : C -> D y G : D -> E, produce G circ F : C -> E
+private def funtor_comp {C D E : Categoria} (F : def_funtor C D) (G : def_funtor D E) :
+    def_funtor C E where
+  mapObj x := G.mapObj (F.mapObj x)
+  mapFle f := G.mapFle (F.mapFle f)
+  dom_map f := (G.dom_map (F.mapFle f)).trans (congrArg G.mapObj (F.dom_map f))
+  cod_map f := (G.cod_map (F.mapFle f)).trans (congrArg G.mapObj (F.cod_map f))
+  map_id x := by rw [F.map_id, G.map_id]
+  map_comp f g h := by
+    rw [F.map_comp f g h, G.map_comp]
+
+-- Predicado: el morfismo f en la categoria C es un isomorfismo
+private def esIsomorfismo {C : Categoria} (f : C.Fle) : Prop :=
+  Exists fun g : C.Fle =>
+  Exists fun h1 : C.Cod f = C.Dom g =>
+  Exists fun h2 : C.Cod g = C.Dom f =>
+    And (C.comp f g h1 = C.id (C.Dom f)) (C.comp g f h2 = C.id (C.Dom g))
+
+/-- Una equivalencia de categorias entre C y D consiste en funtores covariantes
+    F : C -> D y G : D -> C, junto con transformaciones naturales
+    theta : I_C => G circ F y phi : I_D => F circ G,
+    tales que todas las componentes son isomorfismos.
+    En este caso se dice que C y D son equivalentes. -/
+structure block_24 (C D : Categoria) where
+  /-- Funtor covariante de C a D -/
+  F : def_funtor C D
+  /-- Funtor covariante de D a C -/
+  G : def_funtor D C
+  /-- Transformacion natural theta : I_C => G circ F -/
+  theta : def_transf_nat (block_22 C) (funtor_comp F G)
+  /-- Transformacion natural phi : I_D => F circ G -/
+  phi : def_transf_nat (block_22 D) (funtor_comp G F)
+  /-- Cada componente theta_X es un isomorfismo en C -/
+  theta_iso : forall X : C.Ob, esIsomorfismo (theta.component X)
+  /-- Cada componente phi_Y es un isomorfismo en D -/
+  phi_iso : forall Y : D.Ob, esIsomorfismo (phi.component Y)
+
+/-- Dos categorias C y D son dualmente equivalentes si existe una equivalencia
+    de categorias entre C y D^op (la categoria opuesta de D).
+    En este caso se dice que C y D son categorias duales. -/
+def def_equivalencia_dual (C D : Categoria) : Prop :=
+  Nonempty (block_24 C (block_19 D))
+
+/-- Dos categorias C y D son isomorfas (C ≅ D) si existen funtores covariantes
+    F : C -> D y G : D -> C tales que se cumplen las igualdades estrictas
+    F ∘ G = I_D y G ∘ F = I_C, es decir:
+      - F.mapObj (G.mapObj y) = y  y  F.mapFle (G.mapFle f) = f  para todo y, f en D;
+      - G.mapObj (F.mapObj x) = x  y  G.mapFle (F.mapFle g) = g  para todo x, g en C. -/
+structure def_isomorfismo_categorias (C : Categoria.{u1, v1}) (D : Categoria.{u2, v2}) where
+  /-- Funtor covariante de C a D -/
+  F : def_funtor C D
+  /-- Funtor covariante de D a C -/
+  G : def_funtor D C
+  /-- F ∘ G = I_D sobre objetos -/
+  FG_obj : forall y : D.Ob, F.mapObj (G.mapObj y) = y
+  /-- F ∘ G = I_D sobre morfismos -/
+  FG_fle : forall f : D.Fle, F.mapFle (G.mapFle f) = f
+  /-- G ∘ F = I_C sobre objetos -/
+  GF_obj : forall x : C.Ob, G.mapObj (F.mapObj x) = x
+  /-- G ∘ F = I_C sobre morfismos -/
+  GF_fle : forall g : C.Fle, G.mapFle (F.mapFle g) = g
+
+/-- Un reticulo es un algebra L = (L, inf, sup) de tipo (2,2) con dos operaciones binarias
+    que satisfacen: asociatividad, conmutatividad, idempotencia y absorcion. -/
+structure block_27 (L : Type*) where
+  /-- Operacion de infimo (meet) -/
+  inf : L -> L -> L
+  /-- Operacion de supremo (join) -/
+  sup : L -> L -> L
+  /-- Asociatividad de inf -/
+  inf_assoc : forall a b c : L, inf a (inf b c) = inf (inf a b) c
+  /-- Asociatividad de sup -/
+  sup_assoc : forall a b c : L, sup a (sup b c) = sup (sup a b) c
+  /-- Conmutatividad de inf -/
+  inf_comm : forall a b : L, inf a b = inf b a
+  /-- Conmutatividad de sup -/
+  sup_comm : forall a b : L, sup a b = sup b a
+  /-- Idempotencia de inf -/
+  inf_idem : forall a : L, inf a a = a
+  /-- Idempotencia de sup -/
+  sup_idem : forall a : L, sup a a = a
+  /-- Ley de absorcion: a inf (b sup a) = a -/
+  absorption_inf : forall a b : L, inf a (sup b a) = a
+  /-- Ley de absorcion: a sup (b inf a) = a -/
+  absorption_sup : forall a b : L, sup a (inf b a) = a
+
