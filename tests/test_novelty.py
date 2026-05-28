@@ -25,8 +25,45 @@ from src.novelty import (
     novelty_checker,
 )
 from src.novelty.arxiv_search import PaperCandidate, combine_and_filter
+from src.novelty.block_comparator import strip_latex_for_query
 from src.novelty.mathlib_checker import MathlibMatch, MathlibResult
 from src.novelty.novelty_checker import NoveltyChecker, NoveltyLabel
+
+
+# ---------------------------------------------------------------------------
+# strip_latex_for_query — unit tests (no network, no model)
+# ---------------------------------------------------------------------------
+
+def test_strip_latex_plain_title():
+    """Título sin LaTeX se devuelve intacto (salvo whitespace)."""
+    assert strip_latex_for_query("Commutativity of addition") == "Commutativity of addition"
+
+
+def test_strip_latex_cite_removed():
+    r"""Título que es solo una cita bibliográfica queda vacío o sin la cita.
+
+    Caso real: S\'ark\"ozy~\cite{Sarkozy2001}
+    Esperado:  la parte legible del nombre sin \cite ni acentos LaTeX.
+    """
+    result = strip_latex_for_query(r"S\'ark\"ozy~\cite{Sarkozy2001}")
+    # \cite{...} debe desaparecer completamente.
+    assert "cite" not in result
+    assert "Sarkozy2001" not in result
+    # La parte legible del nombre debe conservarse.
+    assert "Sark" in result or "ark" in result.lower()
+
+
+def test_strip_latex_accents():
+    r"""Acentos LaTeX se transliteran a la letra base sin el comando.
+
+    \'a  → a,  \"o → o,  \`e → e
+    """
+    result = strip_latex_for_query(r"Lagrange\'s theorem on \'etale cohomology and M\"obius")
+    assert "\\'" not in result
+    assert '\\"' not in result
+    # Letras base deben estar presentes.
+    assert "Lagrange" in result
+    assert "obius" in result  # M\"obius → Mobius
 
 
 # ---------------------------------------------------------------------------

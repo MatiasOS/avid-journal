@@ -33,8 +33,20 @@ htmlcov/
 # Logs locales de ejecución
 *.log
 
-# Claude Code / Cursor artefactos locales
-.claude/
+# Cache local y auditorías de desarrollo
+cache/
+audit/
+
+# Claude Code: worktrees y configuración local (pero NO los docs)
+.claude/worktrees/
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
+# Carpeta huérfana de Claude Code (typo histórico)
+.claire/
+
+# Instrucciones internas de Claude Code (raíz del repo)
+CLAUDE.md
 
 # Proyectos Lean standalone generados por el orquestador (--standalone / tests)
 lean_papers/

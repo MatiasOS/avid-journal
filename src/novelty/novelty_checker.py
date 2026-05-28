@@ -18,6 +18,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from src.novelty import arxiv_search, block_comparator, llm_judge, mathlib_checker, paper_extractor
+from src.novelty.block_comparator import strip_latex_for_query
 
 logger = logging.getLogger(__name__)
 
@@ -75,11 +76,16 @@ _VERDICT_PRIORITY = {
 
 
 def _block_query(block: Dict[str, Any]) -> str:
-    """Texto corto para search_arxiv: titulo + primer trozo del enunciado."""
-    title = (block.get("title") or "").strip()
+    """Texto corto para search_arxiv: titulo + primer trozo del enunciado.
+
+    Aplica strip_latex_for_query antes de devolver cualquier texto para
+    evitar que comandos LaTeX crudos (\\cite{}, \\', \\", ~, etc.) contaminen
+    la query y provoquen busquedas irrelevantes.
+    """
+    title = strip_latex_for_query((block.get("title") or "").strip())
     if title:
         return title
-    content = (block.get("content_latex") or "").strip()
+    content = strip_latex_for_query(block.get("content_latex") or "")
     return " ".join(content.split())[:120]
 
 
