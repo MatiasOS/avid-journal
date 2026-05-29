@@ -22,6 +22,7 @@ from xml.etree import ElementTree
 import requests
 
 from src.novelty import _cache
+from src.novelty.block_comparator import strip_latex_for_query
 from src.parser.latex_parser import LaTeXParser
 
 logger = logging.getLogger(__name__)
@@ -390,6 +391,78 @@ def download_arxiv_latex(
         return None
 
     return _resolve_inputs(main_tex, extracted_dir)
+
+
+_ABSTRACT_PATTERN = re.compile(
+    r"\\begin\{abstract\}(.*?)\\end\{abstract\}",
+    re.DOTALL | re.IGNORECASE,
+)
+
+
+def extract_abstract_from_tex(tex_path: str) -> Optional[str]:
+    """Extrae el abstract de un .tex local si tiene \\begin{abstract}...\\end{abstract}.
+
+    Usa strip_latex_for_query para producir texto plano limpio, consistente
+    con el abstract proxy que genera el pipeline cuando no hay abstract real.
+
+    Args:
+        tex_path: Ruta al archivo .tex (absoluta o relativa).
+
+    Returns:
+        El abstract como string limpio, o None si no hay sección abstract
+        o si está vacía tras limpiar.
+
+    Raises:
+        FileNotFoundError: Si el archivo no existe.
+        ValueError: Si la ruta no apunta a un .tex.
+    """
+    path = Path(tex_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Archivo .tex no encontrado: {path}")
+    if path.suffix.lower() != ".tex":
+        raise ValueError(f"El archivo debe tener extension .tex: {path}")
+
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    match = _ABSTRACT_PATTERN.search(text)
+    if match is None:
+        return None
+
+    raw = match.group(1)
+    cleaned = strip_latex_for_query(raw).strip()
+    return cleaned if cleaned else None
+
+
+def extract_blocks_from_file(
+    tex_path: str,
+) -> List[Dict[str, Any]]:
+    """Parsea un archivo .tex local y devuelve la lista de bloques formalizables.
+
+    Equivalente a extract_blocks() pero para un archivo local en lugar de un
+    arxiv_id. No usa cache. Devuelve los bloques en el mismo formato que
+    extract_blocks() (el que consume NoveltyChecker y el formalizador).
+
+    Args:
+        tex_path: Ruta al archivo .tex (absoluta o relativa).
+
+    Returns:
+        Lista de bloques con keys: type, label, title, content_latex,
+        proof_latex, references.
+
+    Raises:
+        FileNotFoundError: Si el archivo no existe.
+        ValueError: Si la ruta no apunta a un .tex.
+    """
+    path = Path(tex_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Archivo .tex no encontrado: {path}")
+    if path.suffix.lower() != ".tex":
+        raise ValueError(f"El archivo debe tener extension .tex: {path}")
+
+    try:
+        return LaTeXParser().parse_file(str(path))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("LaTeX parse failed for %s: %s", path, exc)
+        raise
 
 
 def extract_blocks(

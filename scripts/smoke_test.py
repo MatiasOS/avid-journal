@@ -55,6 +55,11 @@ from src.novelty.novelty_checker import (
     NoveltyChecker,
     NoveltyLabel,
 )
+from src.novelty.paper_extractor import (
+    extract_abstract_from_tex,
+    extract_blocks_from_file,
+    fetch_abstract,
+)
 
 # ── configuración ─────────────────────────────────────────────────────────────
 
@@ -155,7 +160,11 @@ def vraw(title: str, obj: Any, max_chars: int = 700) -> None:
 
 # ── función principal ─────────────────────────────────────────────────────────
 
-def run(arxiv_id: str, verbose: bool = False) -> None:
+def run(
+    arxiv_id: Optional[str] = None,
+    verbose: bool = False,
+    tex_path: Optional[str] = None,
+) -> None:
     global VERBOSE
     VERBOSE = verbose
 
@@ -165,24 +174,42 @@ def run(arxiv_id: str, verbose: bool = False) -> None:
     # EXTRACCIÓN
     # ════════════════════════════════════════════════════════
     header("EXTRACCIÓN")
-    desc(
-        "Descarga el código fuente LaTeX del paper desde ArXiv y extrae los",
-        "bloques formalizables: theorem, lemma, proposition, corollary, definition.",
-        "El primer bloque de tipo theorem/lemma es el que se somete al pipeline.",
-    )
-    print(f"  Paper: arXiv:{arxiv_id}")
-    print(f"  Fuente: https://arxiv.org/abs/{arxiv_id}")
 
     blocks: Optional[List[Dict[str, Any]]] = None
     t0 = time.perf_counter()
-    try:
-        print("\n  Descargando y parseando LaTeX...")
-        blocks = paper_extractor.extract_blocks(arxiv_id, use_cache=False)
-    except Exception as exc:
-        stage_error("EXTRACCIÓN", exc)
-        print("\n  Abortando: sin bloques no se puede continuar.")
-        return
-    lap("extract_blocks", t0)
+
+    if tex_path is not None:
+        # ── Modo local: leer .tex desde disco ────────────────
+        desc(
+            "Lee el codigo fuente LaTeX desde un archivo local y extrae los",
+            "bloques formalizables: theorem, lemma, proposition, corollary, definition.",
+            "El primer bloque de tipo theorem/lemma es el que se somete al pipeline.",
+        )
+        print(f"  Fuente: archivo local {tex_path}")
+        try:
+            blocks = extract_blocks_from_file(tex_path)
+        except Exception as exc:
+            stage_error("EXTRACCIÓN (local)", exc)
+            print("\n  Abortando: sin bloques no se puede continuar.")
+            return
+        lap("extract_blocks_from_file", t0)
+    else:
+        # ── Modo ArXiv: descargar desde la red ───────────────
+        desc(
+            "Descarga el codigo fuente LaTeX del paper desde ArXiv y extrae los",
+            "bloques formalizables: theorem, lemma, proposition, corollary, definition.",
+            "El primer bloque de tipo theorem/lemma es el que se somete al pipeline.",
+        )
+        print(f"  Paper: arXiv:{arxiv_id}")
+        print(f"  Fuente: https://arxiv.org/abs/{arxiv_id}")
+        try:
+            print("\n  Descargando y parseando LaTeX...")
+            blocks = paper_extractor.extract_blocks(arxiv_id, use_cache=False)
+        except Exception as exc:
+            stage_error("EXTRACCIÓN", exc)
+            print("\n  Abortando: sin bloques no se puede continuar.")
+            return
+        lap("extract_blocks", t0)
 
     if not blocks:
         print("\n  ⚠️  extract_blocks devolvió lista vacía o None.")
@@ -225,17 +252,49 @@ def run(arxiv_id: str, verbose: bool = False) -> None:
     subheader("Bloque elegido para el smoke test")
     show_block(target_block)
 
-    # Construir un abstract proxy para el pipeline (Stage 1 lo necesita).
-    # Concatenamos los primeros bloques con LaTeX limpio — funciona como
-    # señal temática aunque no sea el abstract real del paper.
-    abstract_parts = []
-    for b in blocks[:5]:
-        piece = strip_latex_for_query(
-            (b.get("title") or "") + " " + (b.get("content_latex") or "")
-        )
-        abstract_parts.append(piece.strip())
-    paper_abstract = " ".join(abstract_parts)[:500]
-    print(f"\n  Abstract proxy para búsqueda (primeros 150 chars):")
+    # ── Abstract para Stage 1 ────────────────────────────────────────────────
+    # Caso arxiv_id: intentar el abstract real (fetch_abstract). Si falla o
+    # devuelve vacío, hacer fallback al proxy construido desde los bloques.
+    # Caso --tex local: usar el proxy directamente (no hay ArXiv para ese paper).
+
+    def _build_proxy() -> str:
+        parts = []
+        for b in blocks[:5]:
+            piece = strip_latex_for_query(
+                (b.get("title") or "") + " " + (b.get("content_latex") or "")
+            )
+            parts.append(piece.strip())
+        return " ".join(parts)[:500]
+
+    if tex_path is None:
+        # Modo ArXiv: intentar abstract real primero
+        paper_abstract: Optional[str] = None
+        t0_abs = time.perf_counter()
+        try:
+            fetched = fetch_abstract(arxiv_id, use_cache=True)
+            if fetched and fetched.strip():
+                paper_abstract = fetched.strip()[:500]
+                abstract_source = "abstract real (ArXiv)"
+            else:
+                paper_abstract = _build_proxy()
+                abstract_source = "proxy desde bloques (fetch_abstract devolvio vacio)"
+        except Exception as exc:
+            paper_abstract = _build_proxy()
+            abstract_source = f"proxy desde bloques (fetch_abstract fallo: {exc})"
+            print(f"\n  [WARN] fetch_abstract fallo, usando proxy: {exc}")
+        lap(f"abstract ({abstract_source})", t0_abs)
+    else:
+        # Modo --tex local: intentar extraer \begin{abstract} del .tex
+        real_abstract = extract_abstract_from_tex(tex_path)
+        if real_abstract:
+            paper_abstract = real_abstract[:500]
+            abstract_source = "abstract real del .tex (seccion \\begin{abstract})"
+        else:
+            paper_abstract = _build_proxy()
+            abstract_source = "proxy desde bloques (el .tex no tiene seccion abstract)"
+
+    print(f"\n  Fuente del abstract: {abstract_source}")
+    print(f"  Abstract para búsqueda (primeros 150 chars):")
     print(f"    {paper_abstract[:150]} [...]")
 
     # ════════════════════════════════════════════════════════
@@ -818,14 +877,26 @@ if __name__ == "__main__":
               python scripts/smoke_test.py 2309.03764
               python scripts/smoke_test.py 2309.03764 --verbose
               python scripts/smoke_test.py 2605.02064 -v
+              python scripts/smoke_test.py --tex examples/tiny_even_numbers/paper.tex
+              python scripts/smoke_test.py --tex path/to/paper.tex --verbose
             """
         ),
     )
-    parser.add_argument(
+
+    # arxiv_id y --tex son mutuamente excluyentes
+    input_group = parser.add_mutually_exclusive_group()
+    input_group.add_argument(
         "arxiv_id",
         nargs="?",
-        default=ARXIV_ID,
+        default=None,
         help=f"arXiv ID del paper a analizar (default: {ARXIV_ID})",
+    )
+    input_group.add_argument(
+        "--tex",
+        metavar="PATH",
+        default=None,
+        dest="tex_path",
+        help="Ruta a un archivo .tex local (alternativa a arxiv_id).",
     )
     parser.add_argument(
         "-v",
@@ -837,21 +908,26 @@ if __name__ == "__main__":
             "resultados de cada API), abstract truncado por candidato, lista "
             "completa de bloques con scores en Stage 2 (umbral=0), prompt "
             "completo y respuesta cruda de Claude en Stage 3, tiempos por "
-            "sub-operación."
+            "sub-operacion."
         ),
     )
     args = parser.parse_args()
 
-    # Normalizar: quitar prefijo "arXiv:" o URL si lo pasaron
-    arxiv_id = args.arxiv_id.strip()
-    for prefix in (
-        "arXiv:",
-        "arxiv:",
-        "https://arxiv.org/abs/",
-        "http://arxiv.org/abs/",
-    ):
-        if arxiv_id.startswith(prefix):
-            arxiv_id = arxiv_id[len(prefix):]
-            break
-
-    run(arxiv_id, verbose=args.verbose)
+    if args.tex_path is not None:
+        # Modo local
+        run(verbose=args.verbose, tex_path=args.tex_path)
+    else:
+        # Modo ArXiv: aplicar default si no se pasó arxiv_id
+        raw_id = args.arxiv_id if args.arxiv_id is not None else ARXIV_ID
+        # Normalizar: quitar prefijo "arXiv:" o URL si lo pasaron
+        arxiv_id = raw_id.strip()
+        for prefix in (
+            "arXiv:",
+            "arxiv:",
+            "https://arxiv.org/abs/",
+            "http://arxiv.org/abs/",
+        ):
+            if arxiv_id.startswith(prefix):
+                arxiv_id = arxiv_id[len(prefix):]
+                break
+        run(arxiv_id=arxiv_id, verbose=args.verbose)
