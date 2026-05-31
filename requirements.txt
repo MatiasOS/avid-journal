@@ -25,10 +25,13 @@ anthropic>=0.18.0
 pytest>=7.4.0
 pytest-cov>=4.1.0
 
-# Optional: For future web interface
-# fastapi>=0.104.0
-# uvicorn>=0.24.0
-# celery>=5.3.0
+# Web demo (Días 10-12 del sprint)
+# gradio>=4.0.0
+
+# LeanDojo (D3 — extracción de premisas)
+# Se instala en WSL2 (Linux), no en Windows nativo.
+# Ver src/novelty_v2/dimensions/d3_premises.py y paper/decisions.md.
+# leandojo>=1.8.0  ← descomentar solo dentro del entorno WSL2
 
 # Development
 black>=23.0.0

@@ -56,3 +56,12 @@ Numina Lean Agent/
 
 # Lean (por si .gitignore del subproyecto no aplica en algún caso)
 .lake/
+
+# LeanDojo — caché de trazas de mathlib (puede pesar 10-20 GB)
+# En Windows: no aplica (LeanDojo corre en WSL2)
+# En WSL2: ~/.cache/leandojo/ y ~/.cache/huggingface/ viven dentro del
+# filesystem de WSL, no en el repo, así que no son problema acá.
+# Si alguna vez se guarda una traza local dentro del repo, excluirla acá:
+lean_dojo_cache/
+*.olean
+# (los .olean del lean_project/ están cubiertos por lean_project/.gitignore)
