@@ -52,4 +52,19 @@
 
 ## Limitaciones descubiertas durante implementación
 
-*(se completan durante Días 3-12)*
+### L9 — D3 ejecutado offline manualmente, no en el pipeline en tiempo real
+
+**Status:** decisión de scope para v1 (registrada en `decisions.md`, 2026-06-01).
+
+**Origen del hallazgo:** durante el Día 3 se descubrió empíricamente que LeanDojo v1 traza dependencias transitivas de todos los imports al procesar un proyecto Lean, no solo los archivos del proyecto. El smoke test sobre `yangky11/lean4-example` (proyecto trivial sin Mathlib) inició procesamiento de 1518 archivos de stdlib.
+
+**Impacto en el demo:**
+- D1 (no-existencia) y D2 (trivialidad) corren automáticamente sobre cada teorema en tiempo real cuando el usuario sube un paper.
+- D3 (distancia de premisas) NO corre automáticamente. Para los teoremas marcados por D1 como "enunciado similar encontrado", el demo expone un botón **"solicitar análisis fino"** que encola el pedido en una cola SQLite.
+- D3 se procesa offline en máquina local con WSL+LeanDojo y se devuelve al usuario asincrónicamente.
+
+**Impacto en la evidencia del paper:**
+- La sección de resultados del preprint reporta D3 ejecutado manualmente sobre los pares estrella del eval set (T07, T08, T09), no sobre todos los 29 teoremas.
+- Las distancias de Jaccard reportadas son válidas; el alcance es menor de lo planificado pre-sprint.
+
+**Mitigación futura:** F2 / F7 del `future_work.md` (premisas ponderadas y arquitectura modular) habilitan reemplazar LeanDojo por un extractor más liviano en versiones futuras.

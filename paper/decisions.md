@@ -96,3 +96,54 @@
 **Razonamiento:** la spec ya prevé este caso ("zona gris") y recomienda explícitamente no forzar etiqueta. El juez LLM ya distingue estos casos con alta precisión. Preservarlos respeta el diseño de la spec y enriquece la salida del demo (el usuario ve "este enunciado es una generalización de X — revisión humana sugerida").
 
 **Reversibilidad:** alta. El campo `revision_humana` es aditivo; colapsarlo a otro veredicto en v2 es un cambio local en `types.py`.
+
+### 2026-06-01 — LeanDojo v1 para extracción de premisas (D3); LeanDojo-v2 como segunda capa del demo post-sprint
+
+**Decisión:** para el sprint actual, usamos **LeanDojo v1** (`lean-dojo` en PyPI) para extracción de premisas (D3). LeanDojo-v2 queda reservado como segunda capa del demo público post-sprint (ver `future_work.md` P4).
+
+**Aclaración conceptual (para evitar confusión futura):** LeanDojo v1 y LeanDojo-v2 NO son versiones de la misma herramienta — son herramientas con propósitos completamente distintos:
+- **LeanDojo v1:** extracción de datos de pruebas — tracing, `get_premises()`, conjuntos de premisas. Es la herramienta de D3.
+- **LeanDojo-v2:** framework para agentes de demostración automática (train + prove). No tiene API de extracción de premisas. Es la capa de prueba del demo post-sprint.
+
+**Alternativas consideradas:**
+- Usar LeanDojo-v2 para D3: rechazado — v2 no expone extracción de premisas (confirmado buscando en repo y PyPI).
+- Extractor custom en Lean metaprogramming: rechazado — semanas de trabajo, fuera del scope del sprint.
+
+**Razonamiento:** la literatura que cita la spec (Magnushammer de Wenda Li, Piotrowski et al.) usa LeanDojo v1 para premise selection. Usar la misma infraestructura es correcto para el paper y para el posicionamiento frente a esa literatura.
+
+**Reversibilidad:** alta. Son módulos independientes; añadir v2 al demo post-sprint no toca D3.
+
+### 2026-06-01 — Pipeline en tiempo real para D1 + D2; D3 a pedido offline
+
+**Decisión:** el demo del sprint procesa papers en tiempo real mostrando progreso en pantalla. **D1** (no-existencia, vía mathlib + arXiv) y **D2** (trivialidad, vía tácticas estándar) corren automáticamente sobre cada teorema. **D3** (distancia de premisas vía LeanDojo) se ofrece como análisis adicional a pedido del usuario, procesado offline en máquina local con WSL+LeanDojo y devuelto asincrónicamente.
+
+**Alternativas consideradas:**
+- D3 también automática en tiempo real: descartado por costo computacional (ver decisión D-XX-B sobre tracing transitivo) — un usuario que sube un paper no puede esperar las horas que toma un tracing.
+- D3 totalmente excluido del demo: descartado porque la distancia de premisas es la dimensión más distintiva del paper (lo que diferencia AViD del baseline de Kasaura et al.).
+
+**Razonamiento:** la cola asíncrona conserva el valor científico de D3 sin bloquear la experiencia interactiva del demo. El usuario ve el veredicto D1+D2 inmediatamente; si pide D3 sobre un teorema marcado como "enunciado similar encontrado", recibe el análisis en una segunda pasada.
+
+**Reversibilidad:** alta. Si LeanDojo (o un sucesor) se vuelve escalable a tiempo real post-sprint, D3 puede migrarse al pipeline automático sin tocar D1/D2 ni la API del demo.
+
+### 2026-06-01 — Hallazgo empírico: LeanDojo traza dependencias transitivas, no solo archivos del proyecto
+
+**Decisión / hallazgo:** contrario a la asunción de trabajo inicial, LeanDojo no traza únicamente los archivos `.lean` del proyecto cargado — procesa toda la cadena de imports transitiva. En el smoke test sobre `yangky11/lean4-example` (que tiene 2 teoremas en un único archivo, y NO importa Mathlib), LeanDojo inició el procesamiento de 1518 archivos correspondientes a la stdlib de Lean 4 e infraestructura de Lake.
+
+**Implicaciones para el sprint:**
+- El "tracing puntual de archivos sueltos" que asumíamos posible para el demo en tiempo real no es alcanzable con la API actual de LeanDojo v1.
+- Para D3 manual del Día 7 sobre los pares estrella (T07, T08, T09), aceptamos una corrida larga única que traza mathlib una vez y reusamos los resultados extraídos.
+- El tiempo realista de tracing de mathlib `v4.29.0` en CPU sigue sin estar documentado; va a ser una de las primeras mediciones del Día 7.
+
+**Reversibilidad:** N/A. Es un hallazgo empírico que reorienta arquitectura, no una decisión reversible. Registrado como tal para futuro reviewer y para no repetir el experimento.
+
+### 2026-06-01 — Demo del sprint como Versión 2 asíncrona incompleta (pipeline end-to-end con streaming)
+
+**Decisión:** el demo no será una galería estática de ejemplos precomputados. Será una interfaz que recibe papers `.tex` completos del usuario, los procesa con streaming visual del progreso (parser → autoformalización → D1 → D2), y devuelve una tabla de teoremas con su veredicto. Cada teorema marcado como "enunciado similar encontrado" exhibe un botón **"solicitar análisis fino"** que dispara D3 vía cola asincrónica con respuesta diferida.
+
+**Alternativas consideradas:**
+- Galería de ejemplos precomputados: descartado por bajo valor demostrativo — no muestra que AViD funciona sobre input nuevo.
+- Demo enteramente síncrono: descartado porque D3 no se puede hacer en tiempo real (ver decisión sobre LeanDojo transitivo).
+
+**Razonamiento:** el demo es simultáneamente una herramienta técnica y un dispositivo narrativo. La interfaz asíncrona refleja honestamente la arquitectura real del sistema y comunica que D3 es una operación cara — un dato relevante para la audiencia de Wenda Li / Welleck / van Doorn.
+
+**Reversibilidad:** media. La cola SQLite y el endpoint asincrónico se pueden extraer del demo público si en algún momento se desea servirlo a escala con backend dedicado.

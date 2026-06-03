@@ -26,9 +26,20 @@
 
 **Hecho:**
 
+- WSL2 instalado correctamente con Ubuntu 22.04 LTS en `D:\WSL\Ubuntu2204\` (fuera de `C:` por restricción de espacio). Usuario `ayrton`, systemd activo.
+- Repo clonado en `~/avid-journal/` (filesystem nativo WSL), SSH key a GitHub configurada, sincronizado con `origin/main` en commit `a0cbd05`.
+- Venv Python 3.10 en `~/avid-journal/.venv/` con todas las dependencias del `requirements.txt` instaladas + `lean-dojo 4.20.0` + `elan 4.2.2` + toolchain `leanprover/lean4:v4.29.0` (la que usa el `lean_project/` del repo).
+- Scaffold de `src/novelty_v2/` commiteado en `a0cbd05`: `types.py` con los 5 veredictos de la spec + `ZONA_GRIS`, dataclasses `D1Result/D2Result/D3Result/NoveltyVerdict`, README con la tabla de reutilización de `src/novelty/`, stubs por dimensión.
+- Hallazgo empírico sobre LeanDojo (ver `decisions.md`): traza dependencias transitivas, no solo archivos del proyecto. Reorienta arquitectura del sprint.
+
 **Pendiente:**
 
-**Bloqueos:**
+- D3 vía LeanDojo queda en modo manual/offline, no en el flujo automático del demo. Se ejecuta el Día 7 sobre los pares estrella (T07, T08, T09).
+- Llenar 9 slots TBD del `eval_set.csv` durante implementación de D1 (Días 4-6).
+
+**Bloqueos:** ninguno. Reorientación arquitectural absorbida.
+
+**Resumen del cierre:** WSL2 instalado correctamente con Ubuntu 22.04 en D:. Venv y entorno Python listos. LeanDojo instalado pero pausado para uso manual en Día 7. Descubierto que LeanDojo traza dependencias transitivas, no tracing puntual. Reorientación arquitectural del sprint hacia demo en tiempo real con D1+D2 automáticos y D3 a pedido. Cierra Día 3 con setup completo pero alcance redirigido.
 
 ## Día 4 — Filtro de trivialidad (D2)
 
