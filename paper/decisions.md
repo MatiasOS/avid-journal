@@ -136,6 +136,22 @@
 
 **Reversibilidad:** N/A. Es un hallazgo empírico que reorienta arquitectura, no una decisión reversible. Registrado como tal para futuro reviewer y para no repetir el experimento.
 
+### 2026-06-03 — Presupuesto de tiempo por táctica en D2
+
+**Decisión:** los presupuestos en segundos para el filtro de trivialidad (D2) son:
+- `decide`, `omega`, `simp`, `norm_num`, `tauto`, `exact?`: 10 s cada una.
+- `aesop`: 30 s (búsqueda más exhaustiva, puede tardar más).
+- Límite duro de OS: `budget + 5 s` de timeout en subprocess (independiente de `maxHeartbeats`).
+
+**Alternativas consideradas:**
+- Presupuesto uniforme de 30 s para todas: rechazado — `decide`/`omega`/`norm_num` son instantáneos; esperar 30 s en cada uno alarga innecesariamente los casos no triviales.
+- Sin `maxHeartbeats` (solo OS timeout): rechazado — `maxHeartbeats` permite que Lean cierre limpiamente antes del kill, evitando archivos corruptos. Se usa la conversión `400_000 heartbeats/s` como techo generoso.
+- Presupuesto separado para `exact?` mayor que 10 s: rechazado para v1; si en la práctica `exact?` necesita más, se ajusta.
+
+**Razonamiento:** `aesop` es el único que justifica más tiempo por su estrategia de búsqueda iterativa. Los valores son iniciales y ajustables — lo que importa es que queden registrados como defaults en `d2_triviality.py` y aquí.
+
+**Reversibilidad:** trivial. Son parámetros en un `dict` en `d2_triviality.py`.
+
 ### 2026-06-01 — Demo del sprint como Versión 2 asíncrona incompleta (pipeline end-to-end con streaming)
 
 **Decisión:** el demo no será una galería estática de ejemplos precomputados. Será una interfaz que recibe papers `.tex` completos del usuario, los procesa con streaming visual del progreso (parser → autoformalización → D1 → D2), y devuelve una tabla de teoremas con su veredicto. Cada teorema marcado como "enunciado similar encontrado" exhibe un botón **"solicitar análisis fino"** que dispara D3 vía cola asincrónica con respuesta diferida.

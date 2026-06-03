@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class Verdict(str, Enum):
@@ -77,7 +77,11 @@ class D2Result:
     """Táctica que lo cerró ('decide'|'omega'|'simp'|'norm_num'|'aesop'|'tauto'|'exact?')."""
 
     tiempo_segundos: Optional[float] = None
-    """Tiempo que tardó la táctica en cerrar el goal."""
+    """Tiempo que tardó la táctica ganadora en cerrar el goal."""
+
+    all_attempts: List[Tuple[str, bool, float, Optional[str]]] = field(default_factory=list)
+    """Lista de intentos: (tactic_name, success, elapsed_seconds, output_or_error).
+    Incluye todas las tácticas intentadas, en orden, hasta y con la ganadora."""
 
 
 @dataclass
@@ -147,6 +151,10 @@ class NoveltyVerdict:
                 "trivial": self.d2.trivial,
                 "tactica": self.d2.tactica,
                 "tiempo_segundos": self.d2.tiempo_segundos,
+                "all_attempts": [
+                    {"tactic": t, "success": s, "runtime": r, "output": o}
+                    for t, s, r, o in self.d2.all_attempts
+                ],
             },
             "d3": {
                 "activa": self.d3.activa,

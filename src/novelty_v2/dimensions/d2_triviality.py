@@ -1,3 +1,159 @@
-# D2 — No-trivialidad
-# Implementación: Día 4 del sprint.
-# Ver paper/metric_spec.md §4.2 para la spec completa.
+"""D2 — No-trivialidad.
+
+Para cada táctica en T_auto = {decide, norm_num, simp, omega, tauto, exact?, aesop},
+genera `example : τ := by T` y ejecuta `lake env lean` con presupuesto de tiempo b.
+Devuelve qué táctica cerró el goal, si alguna.
+
+Spec: paper/metric_spec.md §4.2
+
+Valores de presupuesto (registrados en paper/decisions.md):
+  - decide, omega, simp, norm_num, tauto, exact?: 10 s
+  - aesop: 30 s  (búsqueda más exhaustiva)
+
+Invocar desde WSL con lean_project_dir apuntando al filesystem nativo de Linux
+para aprovechar los oleans pre-compilados de Mathlib.
+"""
+
+from __future__ import annotations
+
+import os
+import subprocess
+import tempfile
+import time
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+from ..types import D2Result
+
+# Orden de ejecución: tácticas baratas y específicas primero, aesop al final.
+T_AUTO_ORDER: List[str] = [
+    "decide",
+    "norm_num",
+    "simp",
+    "omega",
+    "tauto",
+    "exact?",
+    "aesop",
+]
+
+DEFAULT_BUDGETS: Dict[str, int] = {
+    "decide": 10,
+    "norm_num": 10,
+    "simp": 10,
+    "omega": 10,
+    "tauto": 10,
+    "exact?": 10,
+    "aesop": 30,
+}
+
+
+def _heartbeats(budget_seconds: int) -> int:
+    # ~200_000 heartbeats ≈ 1–2 s en hardware moderno; usamos 400k/s como techo
+    # generoso. El OS timeout es el límite duro.
+    return budget_seconds * 400_000
+
+
+def _lean_source(statement: str, tactic: str, heartbeats: int) -> str:
+    return (
+        "import Mathlib\n\n"
+        f"set_option maxHeartbeats {heartbeats}\n\n"
+        f"example : {statement} := by\n"
+        f"  {tactic}\n"
+    )
+
+
+def _run_tactic(
+    lean_statement: str,
+    tactic: str,
+    lean_project_dir: Path,
+    budget_seconds: int,
+) -> Tuple[bool, float, Optional[str]]:
+    """Ejecuta un intento con una táctica. Devuelve (success, elapsed_s, output)."""
+    source = _lean_source(lean_statement, tactic, _heartbeats(budget_seconds))
+
+    fd, tmppath = tempfile.mkstemp(suffix=".lean", prefix="avid_d2_")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(source)
+
+        t0 = time.monotonic()
+        try:
+            proc = subprocess.run(
+                ["lake", "env", "lean", tmppath],
+                cwd=lean_project_dir,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=budget_seconds + 5,
+            )
+            elapsed = time.monotonic() - t0
+            success = proc.returncode == 0
+            out = (proc.stdout + proc.stderr).strip() or None
+            return success, elapsed, out
+        except subprocess.TimeoutExpired:
+            elapsed = time.monotonic() - t0
+            return False, elapsed, f"timeout after {budget_seconds}s"
+        except FileNotFoundError:
+            elapsed = time.monotonic() - t0
+            return (
+                False,
+                elapsed,
+                "lake not found — ejecutar desde WSL con lean en PATH",
+            )
+    finally:
+        try:
+            os.unlink(tmppath)
+        except OSError:
+            pass
+
+
+def check_triviality(
+    lean_statement: str,
+    lean_project_dir: Optional[str | Path] = None,
+    budgets: Optional[Dict[str, int]] = None,
+) -> D2Result:
+    """Intenta cerrar lean_statement con cada táctica en T_auto + exact?.
+
+    Detiene en la primera táctica que cierra el goal (trivial = True).
+    Si ninguna lo cierra, devuelve trivial = False con todos los intentos.
+
+    Args:
+        lean_statement: Expresión de tipo Lean τ, sin 'example :' ni ':= by'.
+            Ej.: '∀ (n : Nat), n + 0 = n'
+        lean_project_dir: Ruta al lean_project/ del repo (debe tener Mathlib y
+            sus oleans pre-compilados). Por defecto: detectado relativo al módulo.
+            En WSL usar '/home/<user>/avid-journal/lean_project' explícitamente.
+        budgets: Presupuesto en segundos por táctica.
+            Valores por defecto: 10 s para todas salvo aesop (30 s).
+
+    Returns:
+        D2Result con trivial flag, táctica ganadora, tiempo, y all_attempts.
+    """
+    if lean_project_dir is None:
+        # parents: [0]=dimensions/ [1]=novelty_v2/ [2]=src/ [3]=repo_root/
+        lean_project_dir = Path(__file__).resolve().parents[3] / "lean_project"
+    lean_project_dir = Path(lean_project_dir)
+    budgets = {**DEFAULT_BUDGETS, **(budgets or {})}
+
+    all_attempts: List[Tuple[str, bool, float, Optional[str]]] = []
+
+    for tactic in T_AUTO_ORDER:
+        budget = budgets.get(tactic, 10)
+        success, elapsed, out = _run_tactic(
+            lean_statement, tactic, lean_project_dir, budget
+        )
+        all_attempts.append((tactic, success, elapsed, out))
+        if success:
+            return D2Result(
+                trivial=True,
+                tactica=tactic,
+                tiempo_segundos=elapsed,
+                all_attempts=all_attempts,
+            )
+
+    return D2Result(
+        trivial=False,
+        tactica=None,
+        tiempo_segundos=None,
+        all_attempts=all_attempts,
+    )
